@@ -113,4 +113,4 @@
 
 (provide 'previews)
 
-;;; csid.el ends here
+;;; previews.el ends here
