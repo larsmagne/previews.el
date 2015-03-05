@@ -25,125 +25,70 @@
 
 ;;; Code:
 
-(defun nice-mm-url-insert-file-contents (url)
-  (if (not (ignore-errors (mm-url-insert-file-contents url)))
-      (progn
-	(sleep-for 2)
-	(ignore-errors (mm-url-insert-file-contents url)))))
-
-(defun fetch-all-data ()
-  (let ((base "http://www.milehighcomics.com/comicindex/nice/February-2015/")
-	(output (find-file "~/nice3.html"))
-	do
-	publishers titles html)
-    (save-excursion
-      (set-buffer output)
-      (erase-buffer)
-      (insert "<body>\n"))
+(defun previews-fetch-month (month year)
+  (let ((base
+	 (format "http://www.milehighcomics.com/comicindex/nice/%s-%s/"
+		 month year))
+	do publishers titles html)
     (with-temp-buffer
-      (mm-url-insert-file-contents 
-       (format "%sPublisherIndex.html" base))
-      (goto-char (point-min))
-      (while (re-search-forward "href=\"\\(Publisher-[^\"]+\\)\">\\([^<]+\\)"
-				nil t)
-	(push (list (match-string 1) (match-string 2)) publishers)))
-    (setq publishers (nreverse publishers))
-    ;;(while (not (string-match "Image" (cadar publishers))) (pop publishers))
-    (dolist (elem publishers)
-      (setq titles nil)
-      (save-excursion
-	(set-buffer output)
-	(goto-char (point-max))
-	(insert (format "<h1>%s</h1><p>" (cadr elem))))
-      (message "%s" (cadr elem))
+      (insert "<body>\n")
       (with-temp-buffer
-	(unless (ignore-errors
-		  (mm-url-insert-file-contents
-		   (format "%s%s" base (car elem)))
-		  t)
-	  (sleep-for 1))
+	(url-insert-file-contents 
+	 (format "%sPublisherIndex.html" base))
 	(goto-char (point-min))
-	(while (re-search-forward "href=\"\\(Title-[^\"]+\\)\">\\([^<]+\\)"
+	(while (re-search-forward "href=\"\\(Publisher-[^\"]+\\)\">\\([^<]+\\)"
 				  nil t)
-	  (push (list (match-string 1) (match-string 2) (cadr elem))
-		titles)))
-      (setq titles (nreverse titles))
-      (dolist (elem titles)
-	(destructuring-bind (url title publisher) elem
-	  (with-temp-buffer
-	    (sleep-for 1)
-	    (ignore-errors
-	      (mm-url-insert-file-contents
-	       (format "%s%s" base url)))
-	    (goto-char (point-min))
-	    (cond
-	     ((re-search-forward "^<b>" nil t)
-	      (push (buffer-substring (point)
-				      (progn (re-search-forward "^</td>")
-					     (match-beginning 0)))
-		    html))
-	     ((re-search-forward "\\(/cgi-bin/nice.cgi\\?action=list&title=[^\"]+\\)\">\\([^<]+\\)"
-				 nil t)
-	      (setq url (match-string 1))
-	      (with-temp-buffer
-		(unless (ignore-errors
-			  (mm-url-insert-file-contents
-			   (format "http://www.milehighcomics.com%s" url))
-			  t)
-		  (sleep-for 1))
-		(goto-char (point-min))
-		(when (re-search-forward "^<b>" nil t)
-		  (push (buffer-substring (point)
-					  (progn (re-search-forward ".*You Pay Only Or Less")
-						 (match-beginning 0)))
-			html)))))
-	    (when html
-	      (save-excursion
-		(set-buffer output)
-		(goto-char (point-max))
-		(insert (car html))
-		(insert "<p>")))))))))
-	
-(defun fetch-genre ()
-  (let ((url "http://www.milehighcomics.com/cgi-bin/genresearch.cgi?title=OV2010")
-	(mm-url-use-external nil)
-	urls)
-    (save-excursion
-      (set-buffer (get-buffer-create "*genre*"))
-      (erase-buffer)
-      (insert "<body bgcolor=black text=white>\n"))
-    (with-temp-buffer
-      (mm-url-insert-file-contents url)
-      (goto-char (point-min))
-      (while (re-search-forward "/cgi-bin/genresearch.cgi[^\"]+" nil t)
-	(push (match-string 0) urls)))
-    (dolist (url (reverse urls))
-      (let ((issues nil)
-	    contents)
+	  (push (list (match-string 1) (match-string 2)) publishers)))
+      (setq publishers (nreverse publishers))
+      (dolist (elem publishers)
+	(setq titles nil)
+	(insert (format "<h1>%s</h1><p>" (cadr elem)))
+	(message "%s" (cadr elem))
 	(with-temp-buffer
-	  (mm-url-insert-file-contents
-	   (concat "http://www.milehighcomics.com" url))
+	  (ignore-errors
+	    (url-insert-file-contents (format "%s%s" base (car elem))))
+	  (sleep-for 1)
 	  (goto-char (point-min))
-	  (while (re-search-forward "/cgi-bin/genresearch.cgi\\?action=issue[^\"]+" nil t)
-	    (push (match-string 0) issues)))
-	(dolist (issue (reverse issues))
-	  (message "%s" issue)
-	  (with-temp-buffer
-	    (mm-url-insert-file-contents
-	     (concat "http://www.milehighcomics.com" issue))
-	    (re-search-forward "\n<IMG SRC\\|\n<TABLE BORDER>")
-	    (let ((start (match-beginning 0)))
-	      (search-forward "View Your Shopping")
-	      (beginning-of-line)
-	      (setq contents (buffer-substring start (point)))
-	      (save-excursion
-		(set-buffer (get-buffer-create "*genre*"))
-		(goto-char (point-max))
-		(insert contents)))))))
-    (set-buffer "*genre*")
-    (goto-char (point-min))
-    (replace-regexp "/cgi-bin/ebasket.cgi" "http://www.milehighcomics.com/cgi-bin/ebasket.cgi")
-    ))
+	  (while (re-search-forward "href=\"\\(Title-[^\"]+\\)\">\\([^<]+\\)"
+				    nil t)
+	    (push (list (match-string 1) (match-string 2) (cadr elem))
+		  titles)))
+	(setq titles (nreverse titles))
+	(dolist (elem titles)
+	  (destructuring-bind (url title publisher) elem
+	    (with-temp-buffer
+	      (ignore-errors
+		(mm-url-insert-file-contents (format "%s%s" base url)))
+	      (sleep-for 1)
+	      (goto-char (point-min))
+	      (cond
+	       ((re-search-forward "^<b>" nil t)
+		(push (buffer-substring (point)
+					(progn (re-search-forward "^</td>")
+					       (match-beginning 0)))
+		      html))
+	       ((re-search-forward "\\(/cgi-bin/nice.cgi\\?action=list&title=[^\"]+\\)\">\\([^<]+\\)"
+				   nil t)
+		(setq url (match-string 1))
+		(with-temp-buffer
+		  (ignore-errors
+		    (mm-url-insert-file-contents
+		     (format "http://www.milehighcomics.com%s" url)))
+		  (sleep-for 1)
+		  (goto-char (point-min))
+		  (when (re-search-forward "^<b>" nil t)
+		    (push (buffer-substring
+			   (point)
+			   (progn (re-search-forward ".*You Pay Only Or Less")
+				  (match-beginning 0)))
+			  html)))))
+	      (when html
+		(insert (car html))
+		(insert "<p>"))))))
+      (let ((coding-system-for-write 'utf-8))
+	(write-region (point-min) (point-max)
+		      (format "~/tmp/nice-%s-%s.html"
+			      year month))))))
 
 (provide 'previews)
 
