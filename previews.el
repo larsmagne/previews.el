@@ -25,6 +25,20 @@
 
 ;;; Code:
 
+(defun previews-insert (&rest format)
+  (let ((url (apply 'format format))
+	result)
+    (message "%s" url)
+    (with-current-buffer (url-retrieve-synchronously url t t)
+      (goto-char (point-min))
+      (when (re-search-forward "\r?\n\r?\n" nil t)
+	(setq result (buffer-substring (point) (point-max))))
+      (kill-buffer (current-buffer)))
+    (when result
+      (insert result)
+      (goto-char (point-min)))
+    (sleep-for 1)))
+
 (defun previews-fetch-month (month year)
   (let ((base
 	 (format "http://www.milehighcomics.com/comicindex/nice/%s-%s/"
@@ -33,9 +47,7 @@
     (with-temp-buffer
       (insert "<body>\n")
       (with-temp-buffer
-	(url-insert-file-contents 
-	 (format "%sPublisherIndex.html" base))
-	(goto-char (point-min))
+	(previews-insert "%sPublisherIndex.html" base)
 	(while (re-search-forward "href=\"\\(Publisher-[^\"]+\\)\">\\([^<]+\\)"
 				  nil t)
 	  (push (list (match-string 1) (match-string 2)) publishers)))
@@ -45,10 +57,7 @@
 	(insert (format "<h1>%s</h1><p>" (cadr elem)))
 	(message "%s" (cadr elem))
 	(with-temp-buffer
-	  (ignore-errors
-	    (url-insert-file-contents (format "%s%s" base (car elem))))
-	  (sleep-for 1)
-	  (goto-char (point-min))
+	  (previews-insert "%s%s" base (car elem))
 	  (while (re-search-forward "href=\"\\(Title-[^\"]+\\)\">\\([^<]+\\)"
 				    nil t)
 	    (push (list (match-string 1) (match-string 2) (cadr elem))
@@ -57,10 +66,7 @@
 	(dolist (elem titles)
 	  (destructuring-bind (url title publisher) elem
 	    (with-temp-buffer
-	      (ignore-errors
-		(mm-url-insert-file-contents (format "%s%s" base url)))
-	      (sleep-for 1)
-	      (goto-char (point-min))
+	      (previews-insert "%s%s" base url)
 	      (cond
 	       ((re-search-forward "^<b>" nil t)
 		(push (buffer-substring (point)
@@ -71,20 +77,16 @@
 				   nil t)
 		(setq url (match-string 1))
 		(with-temp-buffer
-		  (ignore-errors
-		    (mm-url-insert-file-contents
-		     (format "http://www.milehighcomics.com%s" url)))
-		  (sleep-for 1)
-		  (goto-char (point-min))
+		  (previews-insert "http://www.milehighcomics.com%s" url)
 		  (when (re-search-forward "^<b>" nil t)
 		    (push (buffer-substring
 			   (point)
 			   (progn (re-search-forward ".*You Pay Only Or Less")
 				  (match-beginning 0)))
-			  html)))))
-	      (when html
-		(insert (car html))
-		(insert "<p>"))))))
+			  html))))))
+	    (when html
+	      (insert (car html))
+	      (insert "<p>")))))
       (let ((coding-system-for-write 'utf-8))
 	(write-region (point-min) (point-max)
 		      (format "~/tmp/nice-%s-%s.html"
