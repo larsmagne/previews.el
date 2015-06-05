@@ -104,12 +104,27 @@
 	      (insert "<p>")))))
       (if publishers
 	  (let ((coding-system-for-write 'utf-8))
+	    (previews-enhance)
 	    (write-region (point-min) (point-max) (previews-file year month))
 	    t)
 	nil))))
 
 (defun previews-file (year month)
   (format "~/tmp/nice-%s-%s.html" year month))
+
+(defun previews-enhance ()
+  (save-excursion
+    (goto-char (point-min))
+    (while (search-forward "</b>" nil t)
+      (replace-match "" t t))
+    (goto-char (point-min))
+    (while (search-forward "<p>" nil t)
+      (save-restriction
+	(narrow-to-region (point) (or (search-forward "<br>" nil t) (point)))
+	(goto-char (point-min))
+	(when (re-search-forward "#1\\b" nil t)
+	  (replace-match (concat "<b style=\"color: red;\">"
+				 (match-string 0) "</b>")))))))
 
 (provide 'previews)
 
