@@ -2,7 +2,7 @@
 ;; Copyright (C) 2015 Lars Magne Ingebrigtsen
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
-;; Keywords: music
+;; Keywords: comics
 
 ;; This file is not part of GNU Emacs.
 
@@ -42,89 +42,95 @@
 	  (insert "Indeed.")
 	  (message-send-and-exit))))))
 
-(defun previews-insert (&rest format)
-  (let ((url (apply 'format format))
-	result)
-    (message "%s" url)
-    (with-current-buffer (url-retrieve-synchronously url t t)
-      (goto-char (point-min))
-      (when (re-search-forward "\r?\n\r?\n" nil t)
-	(setq result (buffer-substring (point) (point-max))))
-      (kill-buffer (current-buffer)))
-    (when result
-      (insert result)
-      (goto-char (point-min)))
-    (sleep-for 1)))
+(defun previews-index ()
+  (with-current-buffer (url-retrieve-synchronously
+			(format "http://www.previewsworld.com/support/previews_docs/orderforms/archive/%s/%s%s_COF.txt"
+				(format-time-string "%Y")
+				(upcase (format-time-string "%h"))
+				(format-time-string "%y"))
+			t t)
+    (previews-fetch
+     (previews-parse-index))))
 
-(defun previews-fetch-month (year month)
-  (let ((base
-	 (format "http://www.milehighcomics.com/comicindex/nice/%s-%s/"
-		 month year))
-	publishers titles html)
-    (with-temp-buffer
-      (insert "<body>\n")
-      (with-temp-buffer
-	(previews-insert "%sPublisherIndex.html" base)
-	(while (re-search-forward "href=\"\\(Publisher-[^\"]+\\)\">\\([^<]+\\)"
-				  nil t)
-	  (push (list (match-string 1) (match-string 2)) publishers)))
-      (dolist (elem (nreverse publishers))
-	(setq titles nil)
-	(insert (format "<h1>%s</h1><p>" (cadr elem)))
-	(message "%s" (cadr elem))
-	(with-temp-buffer
-	  (previews-insert "%s%s" base (car elem))
-	  (while (re-search-forward "href=\"\\(Title-[^\"]+\\)\">\\([^<]+\\)"
-				    nil t)
-	    (push (list (match-string 1) (match-string 2) (cadr elem))
-		  titles)))
-	(dolist (elem (nreverse titles))
-	  (destructuring-bind (url title publisher) elem
-	    (with-temp-buffer
-	      (previews-insert "%s%s" base url)
-	      (cond
-	       ((re-search-forward "^<b>" nil t)
-		(push (buffer-substring (point)
-					(progn (re-search-forward "^</td>")
-					       (match-beginning 0)))
-		      html))
-	       ((re-search-forward "\\(/cgi-bin/nice.cgi\\?action=list&title=[^\"]+\\)\">\\([^<]+\\)"
-				   nil t)
-		(setq url (match-string 1))
-		(with-temp-buffer
-		  (previews-insert "http://www.milehighcomics.com%s" url)
-		  (when (re-search-forward "^<b>" nil t)
-		    (push (buffer-substring
-			   (point)
-			   (progn (re-search-forward ".*You Pay Only Or Less")
-				  (match-beginning 0)))
-			  html))))))
-	    (when html
-	      (insert (car html))
-	      (insert "<p>")))))
-      (if publishers
-	  (let ((coding-system-for-write 'utf-8))
-	    (previews-enhance)
-	    (write-region (point-min) (point-max) (previews-file year month))
-	    t)
-	nil))))
+(defun previews-parse-index ()
+  (goto-char (point-min))
+  (while (re-search-forward "\r" nil t)
+    (replace-match "" t t))
+  (goto-char (point-min))
+  (while (re-search-forward "^PAGE" nil t)
+    (delete-region (match-beginning 0) (line-beginning-position 2)))
+  (goto-char (point-min))
+  (let ((publisher nil)
+	(comics nil))
+    (while (not (eobp))
+      (cond
+       ((looking-at "[^\t\n]*\t\\([^\t\n]+\\)\t\\([^\t\n]+\\)")
+	(push (list publisher (match-string 1) (match-string 2))
+	      comics))
+       ((looking-at ".+")
+	(setq publisher (match-string 0))))
+      (forward-line 1))
+    (nreverse comics)))
 
-(defun previews-file (year month)
-  (format "~/tmp/nice-%s-%s.html" year month))
+(defun previews-fetch (index)
+  (with-temp-buffer
+    (loop with prev-publisher
+	  for (publisher id title) in index
+	  if (or (and (not (string-match "\\bCVR\\b" title))
+		      (not (string-match "\\bVAR\\b" title)))
+		 (string-match "\\bREG\\b" title)
+		 (string-match "\\bMAIN\\b" title)
+		 (string-match "\\bA\\b" title))
+	  do (unless (equal prev-publisher publisher)
+	       (insert (format "<h1>%s</h1><p>\n" (capitalize publisher)))
+	       (setq prev-publisher publisher))
+	  (message "%s (%s)"
+		   title
+		   publisher)
+	  (insert "<p>")
+	  (insert (replace-regexp-in-string
+		   "#1\\b"
+		   "<b style=\"color: red;\">\\&</b>"
+		   (replace-regexp-in-string " +(C: [-0-9]+) *" "" title))
+		  "\n")
+	  (let ((data (previews-fetch-id id))
+		(shr-base (shr-parse-base "http://www.previewsworld.com/")))
+	    (insert (format "<p>%s (%s)<p>%s<p>\n"
+			    (nth 1 data)
+			    (nth 3 data)
+			    (nth 2 data)))
+	    (when (nth 0 data)
+	      (insert (format "<img src=\"%s\">"
+			      (shr-expand-url (nth 0 data))))))
+	  else
+	  do (message "Skipping %s" title))
+    (let ((coding-system-for-write 'utf-8))
+      (write-region (point-min) (point-max) (previews-file)))))
 
-(defun previews-enhance ()
-  (save-excursion
+(defun previews-file ()
+  (format-time-string "~/tmp/previews-%Y-%h.html"))
+
+(defun previews-fetch-id (id)
+  (with-current-buffer
+    (url-retrieve-synchronously
+     (format "http://www.previewsworld.com/Catalog/%s"
+	     (replace-regexp-in-string " +" "" id))
+     t t)
     (goto-char (point-min))
-    (while (search-forward "</b>" nil t)
-      (replace-match "" t t))
-    (goto-char (point-min))
-    (while (search-forward "<p>" nil t)
-      (save-restriction
-	(narrow-to-region (point) (or (search-forward "<br>" nil t) (point)))
-	(goto-char (point-min))
-	(when (re-search-forward "#1\\b" nil t)
-	  (replace-match (concat "<b style=\"color: red;\">"
-				 (match-string 0) "</b>")))))))
+    (while (re-search-forward "[ \t\r\n]+" nil t)
+      (replace-match " " t t))
+    (prog1
+	(previews-parse-dom
+	 (libxml-parse-html-region (point-min) (point-max)))
+      (kill-buffer (current-buffer)))))
+
+(defun previews-parse-dom (dom)
+  (list (dom-attr (dom-by-tag (dom-by-class dom "FancyPopupImage") 'img)
+		  'src)
+	(dom-texts (dom-by-class dom "StockCodeCreators"))
+	(dom-texts (dom-by-class dom "PreviewsHtml"))
+	(car (last (split-string
+		    (dom-texts (dom-by-class dom "StockCodeSrp")))))))
 
 (provide 'previews)
 
