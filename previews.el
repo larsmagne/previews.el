@@ -25,32 +25,45 @@
 
 ;;; Code:
 
+(require 'json)
+
 (defvar previews-mail-address nil
   "The address to notify when we got a new month's data.")
+
+(defvar previews-data-directory "~/src/emerald/data/")
 
 (defun previews-check ()
   "Check whether this month's previews exists, and if so, download it."
   (interactive)
-  (let ((month (format-time-string "%B"))
-	(year (format-time-string "%Y")))
-    (unless (file-exists-p (previews-file year month))
-      (when (previews-fetch-month year month)
-	(when previews-mail-address
-	  (message-mail previews-mail-address
-			(format "Previews for %s %s has been downloaded"
-				month year))
-	  (insert "Indeed.")
-	  (message-send-and-exit))))))
+  (let ((time (float-time (current-time)))
+	did)
+    (unless (file-exists-p (previews-file time))
+      (setq did (previews-index time)))
+    (incf time (* 60 60 24 12))
+    (unless (file-exists-p (previews-file time))
+      (setq did (previews-index time)))
+    (when (and did
+	       previews-mail-address)
+      (message-mail previews-mail-address
+		    (format "Previews for %s %s has been downloaded"
+			    month year))
+      (insert "Indeed.")
+      (message-send-and-exit))))
 
-(defun previews-index ()
+(defun previews-index (time)
   (with-current-buffer (url-retrieve-synchronously
 			(format "http://www.previewsworld.com/support/previews_docs/orderforms/archive/%s/%s%s_COF.txt"
-				(format-time-string "%Y")
-				(upcase (format-time-string "%h"))
-				(format-time-string "%y"))
+				(format-time-string "%Y" time)
+				(upcase (format-time-string "%h" time))
+				(format-time-string "%y" time))
 			t t)
-    (previews-fetch
-     (previews-parse-index))))
+    (goto-char (point-min))
+    (if (not (search-forward "PREVIEWS" nil t))
+	nil
+      (previews-fetch-and-write
+       (previews-interpret-index
+	(previews-parse-index))
+       time))))
 
 (defun previews-parse-index ()
   (goto-char (point-min))
@@ -64,51 +77,86 @@
 	(comics nil))
     (while (not (eobp))
       (cond
-       ((looking-at "[^\t\n]*\t\\([^\t\n]+\\)\t\\([^\t\n]+\\)")
-	(push (list publisher (match-string 1) (match-string 2))
+       ((looking-at ".*\t")
+	(push (cons publisher
+		    (split-string (buffer-substring (point) (line-end-position))
+				  "\t"))
 	      comics))
        ((looking-at ".+")
 	(setq publisher (match-string 0))))
       (forward-line 1))
     (nreverse comics)))
 
-(defun previews-fetch (index)
-  (with-temp-buffer
-    (loop with prev-publisher
-	  for (publisher id title) in index
-	  if (or (and (not (string-match "\\bCVR\\b" title))
-		      (not (string-match "\\bVAR\\b" title)))
-		 (string-match "\\bREG\\b" title)
-		 (string-match "\\bMAIN\\b" title)
-		 (string-match "\\bA\\b" title))
-	  do (unless (equal prev-publisher publisher)
-	       (insert (format "<h1>%s</h1><p>\n" (capitalize publisher)))
-	       (setq prev-publisher publisher))
-	  (message "%s (%s)"
-		   title
-		   publisher)
-	  (insert "<p>")
-	  (insert (replace-regexp-in-string
-		   "#1\\b"
-		   "<b style=\"color: red;\">\\&</b>"
-		   (replace-regexp-in-string " +(C: [-0-9]+) *" "" title))
-		  "\n")
-	  (let ((data (previews-fetch-id id))
-		(shr-base (shr-parse-base "http://www.previewsworld.com/")))
-	    (insert (format "<p>%s (%s)<p>%s<p>\n"
-			    (nth 1 data)
-			    (nth 3 data)
-			    (nth 2 data)))
-	    (when (nth 0 data)
-	      (insert (format "<img src=\"%s\">"
-			      (shr-expand-url (nth 0 data))))))
-	  else
-	  do (message "Skipping %s" title))
-    (let ((coding-system-for-write 'utf-8))
-      (write-region (point-min) (point-max) (previews-file)))))
+(defun previews-interpret-index (index)
+  (loop with prev-name
+	for (publisher class code title date price) in index
+	collect (let ((data `((:publisher . ,publisher)
+			      (:code . ,(replace-regexp-in-string " " "" code))
+			      (:price . ,(replace-regexp-in-string "SRP: " "" price))
+			      (:date . ,date))))
+		  (when (plusp (length class))
+		    (nconc data (list (cons :class class))))
+		  (with-temp-buffer
+		    (insert title)
+		    (goto-char (point-min))
+		    (when (re-search-forward " +(OF \\([0-9]+\\))" nil t)
+		      (nconc data (list (cons :duration (match-string 1))))
+		      (replace-match ""))
+		    (goto-char (point-min))
+		    (when (re-search-forward " +(C: \\([-0-9]+\\))" nil t)
+		      (nconc data (list (cons :comething (match-string 1))))
+		      (replace-match ""))
+		    (goto-char (point-min))
+		    (when (re-search-forward " +(\\([A-Z][A-Z][A-Z][0-9][0-9][0-9][0-9][0-9][0-9]\\))" nil t)
+		      (nconc data (list (cons :original (match-string 1))))
+		      (replace-match ""))
+		    (goto-char (point-min))
+		    (when (re-search-forward " +(RES)" nil t)
+		      (nconc data (list (cons :resolicited t)))
+		      (replace-match ""))
+		    (goto-char (point-min))
+		    (when (re-search-forward " +(MR)" nil t)
+		      (nconc data (list (cons :mature t)))
+		      (replace-match ""))
+		    (goto-char (point-min))
+		    (when (re-search-forward " +(O/A)" nil t)
+		      (replace-match ""))
+		    (goto-char (point-min))
+		    (when (looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
+		      (nconc data (list (cons :issue (match-string 2))
+					(cons :title (match-string 1))))
+		      (setq name (match-string 0))
+		      (when (equal name prev-name)
+			(nconc data (list (cons :variant t))))
+		      (setq prev-name name))
+		    (nconc data (list (cons :name (buffer-string)))))
+		  data)))
 
-(defun previews-file ()
-  (format-time-string "~/tmp/previews-%Y-%h.html"))
+(defun previews-fetch-and-write (index time)
+  (with-temp-buffer
+    (insert (json-encode (previews-fetch index)))
+    (let ((coding-system-for-write 'utf-8))
+      (write-region (point-min) (point-max) (previews-file time))))
+  (with-temp-buffer
+    (insert (format-time-string "emeraldDate = '%Y-%m';\n" time))
+    (write-region (point-min) (point-max)
+		  (expand-file-name "timestamp.js" previews-data-directory))))
+
+(defun previews-fetch (index)
+  (loop for elem in index
+	collect (let ((data (previews-fetch-id (cdr (assq :code elem))))
+		      (shr-base (shr-parse-base "http://www.previewsworld.com/")))
+		  (message "%s" (cdr (assq :name elem)))
+		  (append elem
+			  `((:img . ,(and (plusp (length (nth 0 data)))
+					  (shr-expand-url (nth 0 data))))
+			    (:creators . ,(nth 1 data))
+			    (:text . ,(nth 2 data)))))))
+
+(defun previews-file (time)
+  (expand-file-name
+   (format-time-string "previews-%Y-%m.json" time)
+   previews-data-directory))
 
 (defun previews-fetch-id (id)
   (with-current-buffer
