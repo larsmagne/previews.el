@@ -90,6 +90,12 @@
 (defun previews-interpret-index (index)
   (loop with prev-name
 	for (publisher class code title date price) in index
+	;; Sometimes there's an extra TAB before the title.  In that
+	;; case, shift values down.
+	do (when (zerop (length title))
+	     (setq title date
+		   date price
+		   price ""))
 	collect (let ((data `((:publisher . ,publisher)
 			      (:code . ,(replace-regexp-in-string " " "" code))
 			      (:price . ,(replace-regexp-in-string "SRP: " "" price))
