@@ -50,6 +50,12 @@
       (insert "Indeed.")
       (message-send-and-exit))))
 
+(defun previews-index-by-date (date)
+  (previews-index (float-time (apply 'encode-time
+				     (mapcar (lambda (e)
+					       (or e 0))
+					     (parse-time-string date))))))
+
 (defun previews-index (time)
   (with-current-buffer (url-retrieve-synchronously
 			(format "http://www.previewsworld.com/support/previews_docs/orderforms/archive/%s/%s%s_COF.txt"
@@ -127,6 +133,10 @@
 		    (goto-char (point-min))
 		    (when (re-search-forward " +(O/A)" nil t)
 		      (replace-match ""))
+		    (goto-char (point-min))
+		    (when (re-search-forward "\\b\\(GN\\|TP\\|HC\\|SC\\)\\b"
+					     nil t)
+		      (nconc data (list (cons :binding (match-string 1)))))
 		    (goto-char (point-min))
 		    (when (looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
 		      (nconc data (list (cons :issue (match-string 2))
