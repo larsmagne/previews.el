@@ -145,7 +145,7 @@
       (write-region (point-min) (point-max) (previews-file time))))
   (with-temp-buffer
     (insert (format-time-string "emeraldDate = '%Y-%m';\n" time))
-    (insert "emeraldDates = ";
+    (insert "emeraldDates = ")
     (insert
      (json-encode
       (loop for file in (directory-files previews-data-directory
