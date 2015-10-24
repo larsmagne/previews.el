@@ -162,7 +162,7 @@
      (json-encode
       (loop for file in (directory-files previews-data-directory
 					 nil "previews.*json")
-	    when (string-match "[-0-9]+" file)
+	    when (string-match "-[-0-9]+" file)
 	    collect (match-string 0 file))))
     (insert ";\n")
     (write-region (point-min) (point-max)
