@@ -162,8 +162,8 @@
      (json-encode
       (loop for file in (directory-files previews-data-directory
 					 nil "previews.*json")
-	    when (string-match "-[-0-9]+" file)
-	    collect (match-string 0 file))))
+	    when (string-match "-\\([-0-9]+\\)" file)
+	    collect (match-string 1 file))))
     (insert ";\n")
     (write-region (point-min) (point-max)
 		  (expand-file-name "timestamp.js" previews-data-directory))))
