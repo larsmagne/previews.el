@@ -60,8 +60,7 @@
 
 (defun previews-index (time)
   (with-current-buffer (url-retrieve-synchronously
-			(format "http://www.previewsworld.com/support/previews_docs/orderforms/archive/%s/%s%s_COF.txt"
-				(format-time-string "%Y" time)
+			(format "http://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/FEB16"
 				(upcase (format-time-string "%h" time))
 				(format-time-string "%y" time))
 			t t)
