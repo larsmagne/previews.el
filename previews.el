@@ -60,7 +60,7 @@
 
 (defun previews-index (time)
   (with-current-buffer (url-retrieve-synchronously
-			(format "http://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/FEB16"
+			(format "http://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/%s%s"
 				(upcase (format-time-string "%h" time))
 				(format-time-string "%y" time))
 			t t)
@@ -185,10 +185,10 @@
 
 (defun previews-fetch-id (id)
   (with-current-buffer
-    (url-retrieve-synchronously
-     (format "http://www.previewsworld.com/Catalog/%s"
-	     (replace-regexp-in-string " +" "" id))
-     t t)
+      (url-retrieve-synchronously
+       (format "http://www.previewsworld.com/Catalog/%s"
+	       (replace-regexp-in-string " +" "" id))
+       t t)
     (goto-char (point-min))
     (while (re-search-forward "[ \t\r\n]+" nil t)
       (replace-match " " t t))
@@ -198,12 +198,16 @@
       (kill-buffer (current-buffer)))))
 
 (defun previews-parse-dom (dom)
-  (list (dom-attr (dom-by-tag (dom-by-class dom "FancyPopupImage") 'img)
+  ;; Image.
+  (list (dom-attr (dom-by-tag (dom-by-class dom "^mainContentImage$") 'img)
 		  'src)
-	(dom-texts (dom-by-class dom "StockCodeCreators"))
-	(dom-texts (dom-by-class dom "PreviewsHtml"))
+	;; Creators.
+	(dom-texts (dom-by-class dom "^Creators$"))
+	;; Text.
+	(dom-text (dom-by-class dom "^Text$"))
+	;; Price.
 	(car (last (split-string
-		    (dom-texts (dom-by-class dom "StockCodeSrp")))))))
+		    (dom-texts (dom-by-class dom "^SRP$")))))))
 
 (provide 'previews)
 
