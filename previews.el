@@ -65,6 +65,9 @@
 				(format-time-string "%y" time))
 			t t)
     (goto-char (point-min))
+    (when (and (search-forward "\n\n" nil )
+	       (= (following-char) 255))
+      (decode-coding-region (point) (point-max) 'utf-16))
     (if (not (search-forward "PREVIEWS" nil t))
 	nil
       (previews-fetch-and-write
