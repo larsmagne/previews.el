@@ -59,6 +59,7 @@
 					     (parse-time-string date))))))
 
 (defun previews-index (time)
+  (set-locale-environment "C")
   (with-current-buffer (url-retrieve-synchronously
 			(format "http://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/%s%s"
 				(upcase (format-time-string "%h" time))
