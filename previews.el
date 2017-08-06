@@ -143,13 +143,22 @@
 					     nil t)
 		      (nconc data (list (cons :binding (match-string 1)))))
 		    (goto-char (point-min))
-		    (when (looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
+		    (cond
+		     ;; Variants.
+		     ((looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
 		      (nconc data (list (cons :issue (match-string 2))
 					(cons :title (match-string 1))))
 		      (setq name (match-string 0))
 		      (when (equal name prev-name)
 			(nconc data (list (cons :variant t))))
 		      (setq prev-name name))
+		     ;; T-shirts.
+		     ((looking-at "\\(.* +T/S\\)")
+		      (nconc data (list (cons :title (match-string 1))))
+		      (setq name (match-string 1))
+		      (when (equal name prev-name)
+			(nconc data (list (cons :variant t))))
+		      (setq prev-name name)))		     
 		    (nconc data (list (cons :name (buffer-string)))))
 		  data)))
 
