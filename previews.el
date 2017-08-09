@@ -235,8 +235,8 @@
 			       previews-data-directory))
 	(json
 	 (with-temp-buffer
-	   (insert-file-contents (format "~/src/emerald/data/previews-%s.json"
-					 month))
+	   (insert-file-contents (expand-file-name (format "previews-%s.json" month)
+						   previews-data-directory))
 	   (json-read))))
     (debug (seq-length json))
     (unless (file-exists-p dir)
