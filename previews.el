@@ -252,7 +252,7 @@
 				   "-L"
 				   "-q" src)
 		     (when (file-exists-p output)
-		       (if (zerop (file-attribute-size (file-attributes output)))
+		       (if (zerop (nth 7 (file-attributes output)))
 			   (delete-file output)
 			 (call-process "convert" nil nil nil
 				       "-resize" "600x" output
