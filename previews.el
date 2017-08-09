@@ -230,6 +230,44 @@
 	(car (last (split-string
 		    (dom-texts (dom-by-class dom "^SRP$")))))))
 
+(defun previews-cache-images (month)
+  (let ((dir (expand-file-name (format "img/%s" month)
+			       previews-data-directory))
+	(json
+	 (with-temp-buffer
+	   (insert-file-contents (format "~/src/emerald/data/previews-%s.json"
+					 month))
+	   (json-read))))
+    (debug (seq-length json))
+    (unless (file-exists-p dir)
+      (make-directory dir t))
+    (loop for comic across json
+	  do (let ((src (cdr (assq 'img comic)))
+		   (code (cdr (assq 'code comic))))
+	       (when (and src code)
+		 (let ((output (expand-file-name (format "%s-full.jpg" code) dir)))
+		   (unless (file-exists-p output)
+		     (message "%s" src)
+		     (call-process "curl" nil nil nil
+				   "-o" output
+				   "-L"
+				   "-q" src)
+		     (when (file-exists-p output)
+		       (if (zerop (file-attribute-size (file-attributes output)))
+			   (delete-file output)
+			 (call-process "convert" nil nil nil
+				       "-resize" "600x" output
+				       (replace-regexp-in-string "-full.jpg" "-scale.jpg" output))))
+		     (sleep-for 5))))))))
+
+(defun previews-make-cache ()
+  (dolist (file (directory-files previews-data-directory nil "previews.*json"))
+    (when (string-match "previews-\\([-0-9]+\\).json" file)
+      (let ((month (match-string 1 file)))
+	(unless (file-exists-p (expand-file-name
+				(format "img/%s" month) previews-data-directory))
+	  (previews-cache-images month))))))
+
 (provide 'previews)
 
 ;;; previews.el ends here
