@@ -238,7 +238,6 @@
 	   (insert-file-contents (expand-file-name (format "previews-%s.json" month)
 						   previews-data-directory))
 	   (json-read))))
-    (debug (seq-length json))
     (unless (file-exists-p dir)
       (make-directory dir t))
     (loop for comic across json
