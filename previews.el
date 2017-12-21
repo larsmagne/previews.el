@@ -39,8 +39,6 @@
   (interactive)
   (let ((time (float-time (current-time)))
 	did)
-    (unless (file-exists-p (previews-file time))
-      (setq did (previews-index time)))
     (incf time (* 60 60 24 12))
     (unless (file-exists-p (previews-file time))
       (setq did (previews-index time)))
@@ -221,8 +219,7 @@
 
 (defun previews-parse-dom (dom)
   ;; Image.
-  (list (dom-attr (dom-by-tag (dom-by-class dom "^mainContentImage$") 'img)
-		  'src)
+  (list (dom-attr (dom-by-id dom "mainContentImage") 'src)
 	;; Creators.
 	(dom-texts (dom-by-class dom "^Creators$"))
 	;; Text.
