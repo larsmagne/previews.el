@@ -39,7 +39,7 @@
   (interactive)
   (let ((time (float-time (current-time)))
 	did)
-    (incf time (* 60 60 24 12))
+    (cl-incf time (* 60 60 24 12))
     (unless (file-exists-p (previews-file time))
       (setq did (previews-index time)))
     (when (and did
@@ -97,76 +97,78 @@
     (nreverse comics)))
 
 (defun previews-interpret-index (index)
-  (loop with prev-name
-	for (publisher class code title date price) in index
-	;; Sometimes there's an extra TAB before the title.  In that
-	;; case, shift values down.
-	do (when (zerop (length title))
-	     (setq title date
-		   date price
-		   price ""))
-	collect (let ((data `((:publisher . ,publisher)
-			      (:code . ,(replace-regexp-in-string " " "" code))
-			      (:price . ,(replace-regexp-in-string "SRP: " "" price))
-			      (:date . ,date))))
-		  (when (plusp (length class))
-		    (nconc data (list (cons :class class))))
-		  (with-temp-buffer
-		    (insert title)
-		    (goto-char (point-min))
-		    (when (re-search-forward " +(OF \\([0-9]+\\))" nil t)
-		      (nconc data (list (cons :duration (match-string 1))))
-		      (replace-match ""))
-		    (goto-char (point-min))
-		    (when (re-search-forward " +(C: \\([-0-9]+\\))" nil t)
-		      (nconc data (list (cons :comething (match-string 1))))
-		      (replace-match ""))
-		    (goto-char (point-min))
-		    (when (re-search-forward " +(\\([A-Z][A-Z][A-Z][0-9][0-9][0-9][0-9][0-9][0-9]\\))" nil t)
-		      (nconc data (list (cons :original (match-string 1))))
-		      (replace-match ""))
-		    (goto-char (point-min))
-		    (when (re-search-forward " +(RES)" nil t)
-		      (nconc data (list (cons :resolicited t)))
-		      (replace-match ""))
-		    (goto-char (point-min))
-		    (when (re-search-forward " +(MR)" nil t)
-		      (nconc data (list (cons :mature t)))
-		      (replace-match ""))
-		    (goto-char (point-min))
-		    (when (re-search-forward " +(O/A)" nil t)
-		      (replace-match ""))
-		    (goto-char (point-min))
-		    (when (re-search-forward "\\b\\(GN\\|TP\\|HC\\|SC\\)\\b"
-					     nil t)
-		      (nconc data (list (cons :binding (match-string 1)))))
-		    (goto-char (point-min))
-		    (cond
-		     ;; Variants.
-		     ((looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
-		      (nconc data (list (cons :issue (match-string 2))
-					(cons :title (match-string 1))))
-		      (setq name (match-string 0))
-		      (when (equal name prev-name)
-			(nconc data (list (cons :variant t))))
-		      (setq prev-name name))
-		     ;; T-shirts.
-		     ((looking-at "\\(.* +T/S\\)")
-		      (nconc data (list (cons :title (match-string 1))))
-		      (setq name (match-string 1))
-		      (when (equal name prev-name)
-			(nconc data (list (cons :variant t))))
-		      (setq prev-name name))
-		     ;; Hardcovers/softcovers
-		     ((looking-at "\\(.*\\) \\(HC\\|SC\\)\\b\\(.*\\)")
-		      (setq name (concat (match-string 1)
-					 (or (match-string 3) "")))
-		      (nconc data (list (cons :title name)))
-		      (when (equal name prev-name)
-			(nconc data (list (cons :variant t))))
-		      (setq prev-name name)))		     
-		    (nconc data (list (cons :name (buffer-string)))))
-		  data)))
+  (cl-loop with prev-name
+	   for (publisher class code title date price) in index
+	   ;; Sometimes there's an extra TAB before the title.  In that
+	   ;; case, shift values down.
+	   do (when (zerop (length title))
+		(setq title date
+		      date price
+		      price ""))
+	   collect (let ((data
+			  `((:publisher . ,publisher)
+			    (:code . ,(replace-regexp-in-string " " "" code))
+			    (:price . ,(replace-regexp-in-string "SRP: " ""
+								 price))
+			    (:date . ,date))))
+		     (when (plusp (length class))
+		       (nconc data (list (cons :class class))))
+		     (with-temp-buffer
+		       (insert title)
+		       (goto-char (point-min))
+		       (when (re-search-forward " +(OF \\([0-9]+\\))" nil t)
+			 (nconc data (list (cons :duration (match-string 1))))
+			 (replace-match ""))
+		       (goto-char (point-min))
+		       (when (re-search-forward " +(C: \\([-0-9]+\\))" nil t)
+			 (nconc data (list (cons :comething (match-string 1))))
+			 (replace-match ""))
+		       (goto-char (point-min))
+		       (when (re-search-forward " +(\\([A-Z][A-Z][A-Z][0-9][0-9][0-9][0-9][0-9][0-9]\\))" nil t)
+			 (nconc data (list (cons :original (match-string 1))))
+			 (replace-match ""))
+		       (goto-char (point-min))
+		       (when (re-search-forward " +(RES)" nil t)
+			 (nconc data (list (cons :resolicited t)))
+			 (replace-match ""))
+		       (goto-char (point-min))
+		       (when (re-search-forward " +(MR)" nil t)
+			 (nconc data (list (cons :mature t)))
+			 (replace-match ""))
+		       (goto-char (point-min))
+		       (when (re-search-forward " +(O/A)" nil t)
+			 (replace-match ""))
+		       (goto-char (point-min))
+		       (when (re-search-forward "\\b\\(GN\\|TP\\|HC\\|SC\\)\\b"
+						nil t)
+			 (nconc data (list (cons :binding (match-string 1)))))
+		       (goto-char (point-min))
+		       (cond
+			;; Variants.
+			((looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
+			 (nconc data (list (cons :issue (match-string 2))
+					   (cons :title (match-string 1))))
+			 (setq name (match-string 0))
+			 (when (equal name prev-name)
+			   (nconc data (list (cons :variant t))))
+			 (setq prev-name name))
+			;; T-shirts.
+			((looking-at "\\(.* +T/S\\)")
+			 (nconc data (list (cons :title (match-string 1))))
+			 (setq name (match-string 1))
+			 (when (equal name prev-name)
+			   (nconc data (list (cons :variant t))))
+			 (setq prev-name name))
+			;; Hardcovers/softcovers
+			((looking-at "\\(.*\\) \\(HC\\|SC\\)\\b\\(.*\\)")
+			 (setq name (concat (match-string 1)
+					    (or (match-string 3) "")))
+			 (nconc data (list (cons :title name)))
+			 (when (equal name prev-name)
+			   (nconc data (list (cons :variant t))))
+			 (setq prev-name name)))		     
+		       (nconc data (list (cons :name (buffer-string)))))
+		     data)))
 
 (defun previews-fetch-and-write (index time)
   (with-temp-buffer
@@ -179,24 +181,25 @@
     (insert "emeraldDates = ")
     (insert
      (json-encode
-      (loop for file in (directory-files previews-data-directory
-					 nil "previews.*json")
-	    when (string-match "-\\([-0-9]+\\)" file)
-	    collect (match-string 1 file))))
+      (cl-loop for file in (directory-files previews-data-directory
+					    nil "previews.*json")
+	       when (string-match "-\\([-0-9]+\\)" file)
+	       collect (match-string 1 file))))
     (insert ";\n")
     (write-region (point-min) (point-max)
 		  (expand-file-name "timestamp.js" previews-data-directory))))
 
 (defun previews-fetch (index)
-  (loop for elem in index
-	collect (let ((data (previews-fetch-id (cdr (assq :code elem))))
-		      (shr-base (shr-parse-base "http://www.previewsworld.com/")))
-		  (message "%s" (cdr (assq :name elem)))
-		  (append elem
-			  `((:img . ,(and (plusp (length (nth 0 data)))
-					  (shr-expand-url (nth 0 data))))
-			    (:creators . ,(nth 1 data))
-			    (:text . ,(nth 2 data)))))))
+  (cl-loop for elem in index
+	   collect (let ((data (previews-fetch-id (cdr (assq :code elem))))
+			 (shr-base (shr-parse-base
+				    "http://www.previewsworld.com/")))
+		     (message "%s" (cdr (assq :name elem)))
+		     (append elem
+			     `((:img . ,(and (plusp (length (nth 0 data)))
+					     (shr-expand-url (nth 0 data))))
+			       (:creators . ,(nth 1 data))
+			       (:text . ,(nth 2 data)))))))
 
 (defun previews-file (time)
   (expand-file-name
@@ -238,24 +241,24 @@
 	   (json-read))))
     (unless (file-exists-p dir)
       (make-directory dir t))
-    (loop for comic across json
-	  do (let ((src (cdr (assq 'img comic)))
-		   (code (cdr (assq 'code comic))))
-	       (when (and src code)
-		 (let ((output (expand-file-name (format "%s-full.jpg" code) dir)))
-		   (unless (file-exists-p output)
-		     (message "%s" src)
-		     (call-process "curl" nil nil nil
-				   "-o" output
-				   "-L"
-				   "-q" src)
-		     (when (file-exists-p output)
-		       (if (zerop (nth 7 (file-attributes output)))
-			   (delete-file output)
-			 (call-process "convert" nil nil nil
-				       "-resize" "600x" output
-				       (replace-regexp-in-string "-full.jpg" "-scale.jpg" output))))
-		     (sleep-for 5))))))))
+    (cl-loop for comic across json
+	     do (let ((src (cdr (assq 'img comic)))
+		      (code (cdr (assq 'code comic))))
+		  (when (and src code)
+		    (let ((output (expand-file-name (format "%s-full.jpg" code) dir)))
+		      (unless (file-exists-p output)
+			(message "%s" src)
+			(call-process "curl" nil nil nil
+				      "-o" output
+				      "-L"
+				      "-q" src)
+			(when (file-exists-p output)
+			  (if (zerop (nth 7 (file-attributes output)))
+			      (delete-file output)
+			    (call-process "convert" nil nil nil
+					  "-resize" "600x" output
+					  (replace-regexp-in-string "-full.jpg" "-scale.jpg" output))))
+			(sleep-for 5))))))))
 
 (defun previews-make-cache ()
   (dolist (file (directory-files previews-data-directory nil "previews.*json"))
