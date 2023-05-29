@@ -315,7 +315,7 @@
 			     (:price . ,(dom-attr elem 'data-retail))
 			     (:date . ,(dom-attr elem 'data-instore))
 			     (:creators . ,(dom-attr elem 'data-creators))
-			     (:txt  . ,(dom-attr elem 'data-desc))
+			     (:text  . ,(dom-attr elem 'data-desc))
 			     (:img . ,(dom-attr elem 'data-img)))))
 		     (with-temp-buffer
 		       (insert name)
