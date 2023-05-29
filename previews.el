@@ -57,6 +57,13 @@
 					     (parse-time-string date))))))
 
 (defun previews-index (time)
+  (when-let ((diamond (previews--index-diamond time))
+	     (lunar (previews--index-lunar time)))
+    (previews-fetch-and-write (append lunar diamond)
+			      time)
+    t))
+
+(defun previews--index-diamond (time)
   (set-locale-environment "C")
   (with-current-buffer (url-retrieve-synchronously
 			(format "http://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/%s%s"
@@ -69,10 +76,7 @@
       (decode-coding-region (point) (point-max) 'utf-16))
     (if (not (search-forward "PREVIEWS" nil t))
 	nil
-      (previews-fetch-and-write
-       (previews-interpret-index
-	(previews-parse-index))
-       time))))
+      (previews-interpret-index (previews-parse-index)))))
 
 (defun previews-parse-index ()
   (goto-char (point-min))
@@ -195,15 +199,20 @@
 
 (defun previews-fetch (index)
   (cl-loop for elem in index
-	   collect (let ((data (previews-fetch-id (cdr (assq :code elem))))
-			 (shr-base (shr-parse-base
-				    "http://www.previewsworld.com/")))
-		     (message "%s" (cdr (assq :name elem)))
-		     (append elem
-			     `((:img . ,(and (plusp (length (nth 0 data)))
-					     (shr-expand-url (nth 0 data))))
-			       (:creators . ,(nth 1 data))
-			       (:text . ,(nth 2 data)))))))
+	   collect (if (assq :text elem)
+		       ;; If we already have the text, then we don't have
+		       ;; to fetch anything.
+		       elem
+		     ;; Fetch the text from Diamond.
+		     (let ((data (previews-fetch-id (cdr (assq :code elem))))
+			   (shr-base (shr-parse-base
+				      "http://www.previewsworld.com/")))
+		       (message "%s" (cdr (assq :name elem)))
+		       (append elem
+			       `((:img . ,(and (plusp (length (nth 0 data)))
+					       (shr-expand-url (nth 0 data))))
+				 (:creators . ,(nth 1 data))
+				 (:text . ,(nth 2 data))))))))
 
 (defun previews-file (time)
   (expand-file-name
@@ -272,14 +281,65 @@
 				(format "img/%s" month) previews-data-directory))
 	  (previews-cache-images month))))))
 
-(defun previews-download-dc ()
-  (with-current-buffer
-      (url-retrieve-synchronously
-       "https://www.comicreleases.com/2023/01/dc-april-2023-solicitations/")
-    (goto-char (point-min))
-    (search-forward "\n\n")
-    (let ((dom (libxml-parse-html-region (point) (point-max))))
-      dom)))
+(defun previews--index-lunar (time)
+  (let ((decoded (decode-time time)))
+    (setq decoded (decoded-time-add decoded (make-decoded-time :month 2)))
+    (setf (decoded-time-day decoded) 1)
+    (cl-loop with month = (decoded-time-month decoded)
+	     while (= month (decoded-time-month decoded))
+	     when (= (decoded-time-weekday (decode-time (encode-time decoded)))
+		     2)
+	     append (previews--index-lunar-1 (encode-time decoded))
+	     do (setq decoded (decoded-time-add decoded
+						(make-decoded-time :day 1))))))
+	     
+(defun previews--index-lunar-1 (time)
+  (let* ((date (format-time-string "%m/%d/%Y" time))
+	 (url (format "https://www.lunardistribution.com//?foc=&release=%s"
+		      date)))
+    (with-current-buffer
+	(url-retrieve-synchronously url t t)
+      (goto-char (point-min))
+      (when (re-search-forward "\n\n" nil t)
+	(previews--parse-lunar
+	 (libxml-parse-html-region (point) (point-max)))))))
+
+(defun previews--parse-lunar (dom)
+  (cl-loop with prev-name
+	   for elem in (dom-by-class dom "productdetail")
+	   when (string-match "DC" (dom-attr elem 'data-code))
+	   collect (let* ((name (dom-attr elem 'data-title))
+			  (data
+			   `((:publisher . "DC Comics")
+			     (:code . ,(dom-attr elem 'data-code))
+			     (:price . ,(dom-attr elem 'data-retail))
+			     (:date . ,(dom-attr elem 'data-instore))
+			     (:creators . ,(dom-attr elem 'data-creators))
+			     (:txt  . ,(dom-attr elem 'data-desc))
+			     (:img . ,(dom-attr elem 'data-img)))))
+		     (with-temp-buffer
+		       (insert name)
+		       (goto-char (point-min))
+		       (when (re-search-forward " +(MR)" nil t)
+			 (nconc data (list (cons :mature t)))
+			 (replace-match ""))
+		       (goto-char (point-min))
+		       (when (re-search-forward
+			      "\\b\\(HC GN\\|GN\\|TP\\|HC\\|SC\\)\\b"
+			      nil t)
+			 (nconc data (list (cons :binding (match-string 1)))))
+		       (goto-char (point-min))
+		       (cond
+			;; Variants.
+			((looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
+			 (nconc data (list (cons :issue (match-string 2))
+					   (cons :title (match-string 1))))
+			 (setq name (match-string 0))
+			 (when (equal name prev-name)
+			   (nconc data (list (cons :variant t))))
+			 (setq prev-name name)))		     
+		       (nconc data (list (cons :name (buffer-string)))))
+		     data)))
 
 (provide 'previews)
 
