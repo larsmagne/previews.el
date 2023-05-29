@@ -139,8 +139,9 @@
 		       (when (re-search-forward " +(O/A)" nil t)
 			 (replace-match ""))
 		       (goto-char (point-min))
-		       (when (re-search-forward "\\b\\(GN\\|TP\\|HC\\|SC\\)\\b"
-						nil t)
+		       (when (re-search-forward
+			      "\\b\\(HC GN\\|GN\\|TP\\|HC\\|SC\\)\\b"
+			      nil t)
 			 (nconc data (list (cons :binding (match-string 1)))))
 		       (goto-char (point-min))
 		       (cond
@@ -160,13 +161,15 @@
 			   (nconc data (list (cons :variant t))))
 			 (setq prev-name name))
 			;; Hardcovers/softcovers
-			((looking-at "\\(.*\\) \\(HC\\|SC\\)\\b\\(.*\\)")
-			 (setq name (concat (match-string 1)
-					    (or (match-string 3) "")))
-			 (nconc data (list (cons :title name)))
-			 (when (equal name prev-name)
+			((or
+			  (looking-at "\\(.*\\) \\(HC GN\\|SGN ED\\)\\b\\(.*?\\)")
+			  (looking-at "\\(.*\\) \\(HC\\|SC\\|GN\\)\\b\\(.*?\\)"))
+			 (setq title (concat (match-string 1)
+					     (or (match-string 3) "")))
+			 (nconc data (list (cons :title title)))
+			 (when (equal title prev-name)
 			   (nconc data (list (cons :variant t))))
-			 (setq prev-name name)))		     
+			 (setq prev-name title)))		     
 		       (nconc data (list (cons :name (buffer-string)))))
 		     data)))
 
@@ -268,6 +271,15 @@
 	(unless (file-exists-p (expand-file-name
 				(format "img/%s" month) previews-data-directory))
 	  (previews-cache-images month))))))
+
+(defun previews-download-dc ()
+  (with-current-buffer
+      (url-retrieve-synchronously
+       "https://www.comicreleases.com/2023/01/dc-april-2023-solicitations/")
+    (goto-char (point-min))
+    (search-forward "\n\n")
+    (let ((dom (libxml-parse-html-region (point) (point-max))))
+      dom)))
 
 (provide 'previews)
 
