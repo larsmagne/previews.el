@@ -28,6 +28,7 @@
 (require 'json)
 (require 'dom)
 (require 'shr)
+(require 'time-date)
 
 (defvar previews-mail-address nil
   "The address to notify when we got a new month's data.")
