@@ -258,7 +258,7 @@
 	(car (last (split-string
 		    (dom-texts (dom-by-class dom "^SRP$")))))))
 
-(defun previews-cache-images (month)
+(defun previews-cache-images (month &optional refresh)
   (let ((dir (expand-file-name (format "img/%s" month)
 			       previews-data-directory))
 	(json
@@ -275,7 +275,9 @@
 		  (when (and src code)
 		    (let ((output (expand-file-name
 				   (format "%s-full.jpg" code) dir)))
-		      (unless (file-exists-p output)
+		      (when (or (not (file-exists-p output))
+				(and refresh
+				     (previews--placeholder-image-p output)))
 			(message "%s" src)
 			(call-process "curl" nil nil nil
 				      "-o" output
@@ -286,8 +288,25 @@
 			      (delete-file output)
 			    (call-process "convert" nil nil nil
 					  "-resize" "600x" output
-					  (replace-regexp-in-string "-full.jpg" "-scale.jpg" output))))
+					  (replace-regexp-in-string
+					   "-full.jpg" "-scale.jpg" output))))
 			(sleep-for 5))))))))
+
+(defun previews--placeholder-image-p (file)
+  (with-temp-buffer
+    (call-process "file" nil t nil file)
+    (goto-char (point-min))
+    (and (search-forward ": " nil t)
+	 (re-search-forward "\\([0-9]+\\) x \\([0-9]+\\)," nil t)
+	 (< (string-to-number (match-string 1)) 200))))
+
+(defun previews-refresh-placeholders ()
+  (interactive)
+  (let* ((regexp "previews-\\([-0-9]+\\)[.]json\\'")
+	 (latest (car (last (directory-files
+			     previews-data-directory t regexp)))))
+    (and (string-match regexp latest)
+	 (previews-cache-images (match-string 1 latest) t))))
 
 (defun previews-make-cache ()
   (dolist (file (directory-files previews-data-directory nil "previews.*json"))
