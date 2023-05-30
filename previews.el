@@ -67,7 +67,7 @@
 (defun previews--index-diamond (time)
   (set-locale-environment "C")
   (with-current-buffer (url-retrieve-synchronously
-			(format "http://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/%s%s"
+			(format "https://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/%s%s"
 				(upcase (format-time-string "%h" time))
 				(format-time-string "%y" time))
 			t t)
@@ -207,7 +207,7 @@
 		     ;; Fetch the text from Diamond.
 		     (let ((data (previews-fetch-id (cdr (assq :code elem))))
 			   (shr-base (shr-parse-base
-				      "http://www.previewsworld.com/")))
+				      "https://www.previewsworld.com/")))
 		       (message "%s" (cdr (assq :name elem)))
 		       (append elem
 			       `((:img . ,(and (plusp (length (nth 0 data)))
@@ -223,7 +223,7 @@
 (defun previews-fetch-id (id)
   (with-current-buffer
       (url-retrieve-synchronously
-       (format "http://www.previewsworld.com/Catalog/%s"
+       (format "https://www.previewsworld.com/Catalog/%s"
 	       (replace-regexp-in-string " +" "" id))
        t t)
     (goto-char (point-min))
@@ -240,7 +240,13 @@
 	;; Creators.
 	(dom-texts (dom-by-class dom "^Creators$"))
 	;; Text.
-	(dom-text (dom-by-class dom "^Text$"))
+	(string-join
+	 (cl-loop for child in (dom-children (dom-by-class dom "^Text$"))
+		  when (or (stringp child)
+			   (eq (dom-tag child) 'i))
+		  collect (if (stringp child)
+			      child
+			    (dom-text child))))
 	;; Price.
 	(car (last (split-string
 		    (dom-texts (dom-by-class dom "^SRP$")))))))
