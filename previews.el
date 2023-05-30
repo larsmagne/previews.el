@@ -256,8 +256,9 @@
 			       previews-data-directory))
 	(json
 	 (with-temp-buffer
-	   (insert-file-contents (expand-file-name (format "previews-%s.json" month)
-						   previews-data-directory))
+	   (insert-file-contents
+	    (expand-file-name (format "previews-%s.json" month)
+			      previews-data-directory))
 	   (json-read))))
     (unless (file-exists-p dir)
       (make-directory dir t))
@@ -265,7 +266,8 @@
 	     do (let ((src (cdr (assq 'img comic)))
 		      (code (cdr (assq 'code comic))))
 		  (when (and src code)
-		    (let ((output (expand-file-name (format "%s-full.jpg" code) dir)))
+		    (let ((output (expand-file-name
+				   (format "%s-full.jpg" code) dir)))
 		      (unless (file-exists-p output)
 			(message "%s" src)
 			(call-process "curl" nil nil nil
