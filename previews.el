@@ -167,7 +167,7 @@
 			 (setq prev-name name))
 			;; Hardcovers/softcovers
 			((or
-			  (looking-at "\\(.*\\) \\(HC GN\\|SGN ED\\)\\b\\(.*?\\)")
+			  (looking-at "\\(.*\\) \\(LTD ED HC\\|HC GN\\|SGN ED\\)\\b\\(.*?\\)")
 			  (looking-at "\\(.*\\) \\(HC\\|SC\\|GN\\)\\b\\(.*?\\)"))
 			 (setq title (concat (match-string 1)
 					     (or (match-string 3) "")))
