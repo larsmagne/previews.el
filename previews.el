@@ -158,7 +158,7 @@
 		       (goto-char (point-min))
 		       (cond
 			;; Variants.
-			((looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
+			((looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\|ONE SHOT\\)")
 			 (nconc data (list (cons :issue (match-string 2))
 					   (cons :title (match-string 1))))
 			 (setq name (match-string 0))
