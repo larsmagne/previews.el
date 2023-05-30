@@ -60,8 +60,15 @@
 (defun previews-index (time)
   (when-let ((diamond (previews--index-diamond time))
 	     (lunar (previews--index-lunar time)))
-    (previews-fetch-and-write (append lunar diamond)
-			      time)
+    ;; Splice in the Lunar data before Dark Horse (because why not).
+    (cl-loop with d = diamond
+	     while d
+	     when (equal (cdr (assq :publisher (cadr d))) "DARK HORSE COMICS")
+	     do (progn
+		  (setcdr d (append lunar (cdr d)))
+		  (setq d nil))
+	     do (setq d (cdr d)))
+    (previews-fetch-and-write diamond time)
     t))
 
 (defun previews--index-diamond (time)
