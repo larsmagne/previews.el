@@ -59,7 +59,10 @@
 
 (defun previews-index (time)
   (when-let ((diamond (previews--index-diamond time))
-	     (lunar (previews--index-lunar time)))
+	     (lunar (seq-uniq (previews--index-lunar time)
+			      (lambda (e1 e2)
+				(equal (cdr (assq 'code e1))
+				       (cdr (assq 'code e2)))))))
     ;; Splice in the Lunar data before Dark Horse (because why not).
     (cl-loop with d = diamond
 	     while d
