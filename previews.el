@@ -46,8 +46,8 @@
     (when (and did
 	       previews-mail-address)
       (message-mail previews-mail-address
-		    (format "Previews for %s %s has been downloaded"
-			    month year))
+		    (format "Previews for %s has been downloaded"
+			    (format-time-string "%Y-%m" time)))
       (insert "Indeed.")
       (message-send-and-exit))))
 
@@ -125,7 +125,8 @@
 			    (:code . ,(replace-regexp-in-string " " "" code))
 			    (:price . ,(replace-regexp-in-string "SRP: " ""
 								 price))
-			    (:date . ,date))))
+			    (:date . ,date)))
+			 name)
 		     (when (plusp (length class))
 		       (nconc data (list (cons :class class))))
 		     (with-temp-buffer
