@@ -191,7 +191,7 @@
     (let ((coding-system-for-write 'utf-8))
       (write-region (point-min) (point-max) (previews-file time))))
   (previews-make-cache)
-  (previews-cache-images time)
+  (previews-cache-images (format-time-string "%Y-%m" time))
   (with-temp-buffer
     (insert (format-time-string "emeraldDate = '%Y-%m';\n" time))
     (insert "emeraldDates = ")
