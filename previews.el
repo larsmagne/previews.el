@@ -220,7 +220,7 @@
 			       `((:img . ,(and (plusp (length (nth 0 data)))
 					       (shr-expand-url (nth 0 data))))
 				 (:creators . ,(nth 1 data))
-				 (:text . ,(nth 2 data))))))))
+				 (:text . ,(string-trim (nth 2 data)))))))))
 
 (defun previews-file (time)
   (expand-file-name
