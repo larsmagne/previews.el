@@ -63,14 +63,22 @@
 			      (lambda (e1 e2)
 				(equal (cdr (assq :code e1))
 				       (cdr (assq :code e2)))))))
-    ;; Splice in the Lunar data before Dark Horse (because why not).
-    (cl-loop with d = diamond
-	     while d
-	     when (equal (cdr (assq :publisher (cadr d))) "DARK HORSE COMICS")
-	     do (progn
-		  (setcdr d (append lunar (cdr d)))
-		  (setq d nil))
-	     do (setq d (cdr d)))
+    ;; Sort the publishers alphabetically.
+    (setq diamond
+	  (sort (append lunar diamond)
+		(lambda (e1 e2)
+		  (cond
+		   ;; Search merch to the end.
+		   ((and (assq :merch e1)
+			 (not (assq :merch e2)))
+		    nil)
+		   ((and (not (assq :merch e1))
+			 (assq :merch e2))
+		    t)
+		   ;; Sort by publisher within non-merch/merch.
+		   (t
+		    (string< (cdr (assq :publisher e1))
+			     (cdr (assq :publisher e2))))))))
     (previews-fetch-and-write diamond time)
     t))
 
@@ -98,14 +106,17 @@
     (delete-region (match-beginning 0) (line-beginning-position 2)))
   (goto-char (point-min))
   (let ((publisher nil)
+	(merchandise nil)
 	(comics nil))
     (while (not (eobp))
       (cond
        ((looking-at ".*\t")
-	(push (cons publisher
+	(push (list publisher merchandise
 		    (split-string (buffer-substring (point) (line-end-position))
 				  "\t"))
 	      comics))
+       ((looking-at "MERCHANDISE *$")
+	(setq merchandise t))
        ((looking-at ".+")
 	(setq publisher (match-string 0))))
       (forward-line 1))
@@ -113,7 +124,7 @@
 
 (defun previews-interpret-index (index)
   (cl-loop with prev-name
-	   for (publisher class code title date price) in index
+	   for (publisher merchandise (class code title date price)) in index
 	   ;; Sometimes there's an extra TAB before the title.  In that
 	   ;; case, shift values down.
 	   do (when (zerop (length title))
@@ -129,6 +140,8 @@
 			 name)
 		     (when (plusp (length class))
 		       (nconc data (list (cons :class class))))
+		     (when merchandise
+		       (nconc data (list (cons :merch "t"))))
 		     (with-temp-buffer
 		       (insert title)
 		       (goto-char (point-min))
