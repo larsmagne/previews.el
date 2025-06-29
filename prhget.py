@@ -12,6 +12,7 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, ElementNotInteractableException
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 
 if not os.path.exists("/tmp/prh/"):
     os.mkdir("/tmp/prh/")
@@ -42,11 +43,21 @@ except NoSuchElementException:
 time.sleep(3)
 
 button = driver.find_element(By.CLASS_NAME, "product-list-download")
+hover = ActionChains(driver).move_to_element(button)
+hover.perform()
+
+time.sleep(3)
+
 button.click()
 
 time.sleep(3)
 
 button = driver.find_element(By.XPATH, "//a[@href='#xls']")
+hover = ActionChains(driver).move_to_element(button)
+hover.perform()
+
+time.sleep(3)
+
 button.click()
 
 time.sleep(60)
