@@ -62,7 +62,8 @@
 	     (lunar (seq-uniq (previews--index-lunar time)
 			      (lambda (e1 e2)
 				(equal (cdr (assq :code e1))
-				       (cdr (assq :code e2)))))))
+				       (cdr (assq :code e2))))))
+	     (prh (previews--index-prh (format-time-string "%Y-%m" time))))
     ;; Sort the publishers alphabetically.
     (setq diamond
 	  (sort (append lunar diamond)
@@ -428,8 +429,7 @@
   (let ((dom
 	 (with-temp-buffer
 	   (insert-file-contents file)
-	   (libxml-parse-html-region (point-min) (point-max))))
-	prev-title)
+	   (libxml-parse-html-region (point-min) (point-max)))))
 	
     (cl-loop for comic in (dom-by-class dom "product-item-medium")
 	     for title = (string-trim
@@ -486,6 +486,14 @@
 		      collect (dom-text (dom-by-tag author 'a)))
 	     ", "))
     comic))
+
+(defun previews--index-prh (date)
+  (call-process "~/src/previews.el/prhget.py" nil nil nil date "/tmp/prh.html")
+  (let ((comics (previews--prh-parse "/tmp/prh.html")))
+    (cl-loop for comic in comics
+	     do
+	     (previews--fill-comic comic)
+	     (sleep-for 5))))
 
 (provide 'previews)
 

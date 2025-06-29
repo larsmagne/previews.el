@@ -5,6 +5,7 @@
 import time
 import random
 import json
+import sys
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, ElementNotInteractableException
@@ -20,7 +21,8 @@ chrome_options.add_argument("--disable-dev-shm-usage");
 #chrome_options.add_argument('--no-sandbox')
 driver = webdriver.Chrome(options=chrome_options)
 
-driver.get("https://prhcomics.com/catalog-landing-page/?catalogCode=2025-05")
+driver.get("https://prhcomics.com/catalog-landing-page/?catalogCode=" +
+           sys.argv[1])
 
 time.sleep(5)
 
@@ -67,7 +69,7 @@ while times > 0:
     time.sleep(5)
 
 html = driver.execute_script("return document.body.innerHTML;")
-with open("prh.html", "w") as f:
+with open(sys.argv[2], "w") as f:
     f.write(html)
     print("Saved")
 
