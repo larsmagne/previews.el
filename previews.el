@@ -1,4 +1,4 @@
-;;; previews.el --- Make a single HTML page for all new comics
+;;; previews.el --- Make a single HTML page for all new comics -*- lexical-binding: t -*-
 ;; Copyright (C) 2015 Lars Magne Ingebrigtsen
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -353,17 +353,18 @@
 	(url-retrieve-synchronously url t t)
       (goto-char (point-min))
       (when (re-search-forward "\n\n" nil t)
-	(previews--parse-lunar
-	 (libxml-parse-html-region (point) (point-max)))))))
+	 (previews--parse-lunar
+	  (libxml-parse-html-region (point) (point-max)))))))
 
 (defun previews--parse-lunar (dom)
   (cl-loop with prev-name
 	   for elem in (dom-by-class dom "productdetail")
-	   when (string-match "DC" (dom-attr elem 'data-code))
 	   collect (let* ((name (dom-attr elem 'data-title))
+			  (code (dom-attr elem 'data-code))
 			  (data
-			   `((:publisher . "DC Comics")
-			     (:code . ,(dom-attr elem 'data-code))
+			   `((:publisher . ,(previews--lunar-publisher
+					     (substring code 4 6)))
+			     (:code . ,code)
 			     (:price . ,(dom-attr elem 'data-retail))
 			     (:date . ,(dom-attr elem 'data-instore))
 			     (:creators . ,(dom-attr elem 'data-creators))
@@ -392,6 +393,36 @@
 			 (setq prev-name name)))		     
 		       (nconc data (list (cons :name (buffer-string)))))
 		     data)))
+
+(defvar previews--lunar-publishers
+  '((DC "DC Comics")
+    (TM "Twomorrows")
+    (IM "Image")
+    (DE "Dynamite")
+    (RE "Rebellion")
+    (ON "Oni")
+    (MA "Mad Cave")
+    (BM "Black Mask")
+    (CS "Comic Shop News")
+    (RE "Rocketship Entertainment")
+    (AH "Ahoy Comics")
+    (MP "Panick Entertainment")
+    (RC "Rekcah Comics")
+    (IP "IPI Comics")
+    (BD "Bad Idea")
+    (AW "Awa")
+    (UB "U B")
+    (VL "V L")
+    (PZ "Papercutz")
+    (CP "Clover Press")
+    (PG "PUGW")
+    (FB "Fantagraphics Books")
+    (DQ "Drawn & Quarterly")
+    (AC "Archie Comics")))
+
+(defun previews--lunar-publisher (code)
+  (or (cadr (assq (intern code) previews--lunar-publishers))
+      code))
 
 (provide 'previews)
 
