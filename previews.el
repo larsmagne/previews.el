@@ -424,6 +424,69 @@
   (or (cadr (assq (intern code) previews--lunar-publishers))
       code))
 
+(defun previews--prh-parse (file)
+  (let ((dom
+	 (with-temp-buffer
+	   (insert-file-contents file)
+	   (libxml-parse-html-region (point-min) (point-max))))
+	prev-title)
+	
+    (cl-loop for comic in (dom-by-class dom "product-item-medium")
+	     for title = (string-trim
+			  (dom-texts
+			   (dom-by-class comic "carousel-meta-title")))
+	     do
+	     (progn
+	       (if (string-match " \\(#[0-9]+\\|Vol\\(ume\\|[.]\\)? [0-9]+\\) "
+				 title)
+		   (setq issue (match-string 1 title)
+			 title (substring title 0 (match-beginning 0)))
+		 (setq issue "")))
+	     collect
+	     `((:publisher . ,(dom-text
+			       (dom-by-class comic "carousel-meta-division")))
+	       (:code . ,(dom-attr (dom-by-tag comic 'button) 'data-isbn))
+	       (:price . ,(replace-regexp-in-string
+			   " US" ""
+			   (string-trim
+			    (dom-text (dom-by-class comic "price-usa")))))
+	       (:date . ,(string-trim
+			  (replace-regexp-in-string
+			   "On sale" ""
+			   (dom-text
+			    (dom-by-class comic "carousel-meta-onsale")))))
+	       (:creators . "")
+	       (:text  . "")
+	       (:title . ,title)
+	       (:issue . ,issue)
+	       (:img . ,(string-replace
+			 "/cover/" "/cover/tif/"
+			 (replace-regexp-in-string
+			  "[?]width.*" ""
+			  (dom-attr (dom-by-tag comic 'img) 'src))))))))
+
+(defun previews--fill-comic (comic)
+  (let ((dom
+	 (with-current-buffer
+	     (url-retrieve-synchronously
+	      (concat "https://prhcomics.com/book/?isbn="
+		      (cdr (assq :code comic))))
+	   (goto-char (point-min))
+	   (prog1
+	       (when (search-forward "\n\n" nil t)
+		 (libxml-parse-html-region (point) (point-max)))
+	     (kill-buffer (current-buffer))))))
+    (setcdr (assq :text comic)
+	    (string-trim
+	     (string-clean-whitespace
+	      (dom-texts (dom-by-class dom "book-detail-about")))))
+    (setcdr (assq :creators comic)
+	    (string-join
+	     (cl-loop for author in (dom-by-class dom "book-detail-author")
+		      collect (dom-text (dom-by-tag author 'a)))
+	     ", "))
+    comic))
+
 (provide 'previews)
 
 ;;; previews.el ends here
