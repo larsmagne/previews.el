@@ -1,4 +1,4 @@
-;;; previews.el --- Make a single HTML page for all new comics
+;;; previews.el --- Make a single HTML page for all new comics -*- lexical-binding: t -*-
 ;; Copyright (C) 2015 Lars Magne Ingebrigtsen
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -28,6 +28,7 @@
 (require 'json)
 (require 'dom)
 (require 'shr)
+(require 'time-date)
 
 (defvar previews-mail-address nil
   "The address to notify when we got a new month's data.")
@@ -45,8 +46,8 @@
     (when (and did
 	       previews-mail-address)
       (message-mail previews-mail-address
-		    (format "Previews for %s %s has been downloaded"
-			    month year))
+		    (format "Previews for %s has been downloaded"
+			    (format-time-string "%Y-%m" time)))
       (insert "Indeed.")
       (message-send-and-exit))))
 
@@ -57,9 +58,38 @@
 					     (parse-time-string date))))))
 
 (defun previews-index (time)
+  (when-let ((diamond (previews--index-diamond time))
+	     (lunar (seq-uniq (previews--index-lunar time)
+			      (lambda (e1 e2)
+				(equal (cdr (assq :code e1))
+				       (cdr (assq :code e2)))))))
+    ;; Sort the publishers alphabetically.
+    (setq diamond
+	  (sort (append lunar diamond)
+		(lambda (e1 e2)
+		  (cond
+		   ;; Search merch to the end.
+		   ((and (assq :merch e1)
+			 (not (assq :merch e2)))
+		    nil)
+		   ((and (not (assq :merch e1))
+			 (assq :merch e2))
+		    t)
+		   ;; Sort by publisher within non-merch/merch.
+		   (t
+		    (string< (cdr (assq :publisher e1))
+			     (cdr (assq :publisher e2))))))))
+    (previews-fetch-and-write diamond time)
+    t))
+
+(defun previews--index-diamond (time)
   (set-locale-environment "C")
   (with-current-buffer (url-retrieve-synchronously
+<<<<<<< HEAD
 			(format "https://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/SEP17"
+=======
+			(format "https://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/%s%s"
+>>>>>>> what
 				(upcase (format-time-string "%h" time))
 				(format-time-string "%y" time))
 			t t)
@@ -69,10 +99,7 @@
       (decode-coding-region (point) (point-max) 'utf-16))
     (if (not (search-forward "PREVIEWS" nil t))
 	nil
-      (previews-fetch-and-write
-       (previews-interpret-index
-	(previews-parse-index))
-       time))))
+      (previews-interpret-index (previews-parse-index)))))
 
 (defun previews-parse-index ()
   (goto-char (point-min))
@@ -83,14 +110,17 @@
     (delete-region (match-beginning 0) (line-beginning-position 2)))
   (goto-char (point-min))
   (let ((publisher nil)
+	(merchandise nil)
 	(comics nil))
     (while (not (eobp))
       (cond
        ((looking-at ".*\t")
-	(push (cons publisher
+	(push (list publisher merchandise
 		    (split-string (buffer-substring (point) (line-end-position))
 				  "\t"))
 	      comics))
+       ((looking-at "MERCHANDISE *$")
+	(setq merchandise t))
        ((looking-at ".+")
 	(setq publisher (match-string 0))))
       (forward-line 1))
@@ -98,7 +128,7 @@
 
 (defun previews-interpret-index (index)
   (cl-loop with prev-name
-	   for (publisher class code title date price) in index
+	   for (publisher merchandise (class code title date price)) in index
 	   ;; Sometimes there's an extra TAB before the title.  In that
 	   ;; case, shift values down.
 	   do (when (zerop (length title))
@@ -110,9 +140,12 @@
 			    (:code . ,(replace-regexp-in-string " " "" code))
 			    (:price . ,(replace-regexp-in-string "SRP: " ""
 								 price))
-			    (:date . ,date))))
+			    (:date . ,date)))
+			 name)
 		     (when (plusp (length class))
 		       (nconc data (list (cons :class class))))
+		     (when merchandise
+		       (nconc data (list (cons :merch "t"))))
 		     (with-temp-buffer
 		       (insert title)
 		       (goto-char (point-min))
@@ -139,13 +172,14 @@
 		       (when (re-search-forward " +(O/A)" nil t)
 			 (replace-match ""))
 		       (goto-char (point-min))
-		       (when (re-search-forward "\\b\\(GN\\|TP\\|HC\\|SC\\)\\b"
-						nil t)
+		       (when (re-search-forward
+			      "\\b\\(HC GN\\|GN\\|TP\\|HC\\|SC\\)\\b"
+			      nil t)
 			 (nconc data (list (cons :binding (match-string 1)))))
 		       (goto-char (point-min))
 		       (cond
 			;; Variants.
-			((looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
+			((looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\|ONE SHOT\\)")
 			 (nconc data (list (cons :issue (match-string 2))
 					   (cons :title (match-string 1))))
 			 (setq name (match-string 0))
@@ -160,13 +194,15 @@
 			   (nconc data (list (cons :variant t))))
 			 (setq prev-name name))
 			;; Hardcovers/softcovers
-			((looking-at "\\(.*\\) \\(HC\\|SC\\)\\b\\(.*\\)")
-			 (setq name (concat (match-string 1)
-					    (or (match-string 3) "")))
-			 (nconc data (list (cons :title name)))
-			 (when (equal name prev-name)
+			((or
+			  (looking-at "\\(.*\\) \\(LTD ED HC\\|HC GN\\|SGN ED\\)\\b\\(.*?\\)")
+			  (looking-at "\\(.*\\) \\(HC\\|SC\\|GN\\)\\b\\(.*?\\)"))
+			 (setq title (concat (match-string 1)
+					     (or (match-string 3) "")))
+			 (nconc data (list (cons :title title)))
+			 (when (equal title prev-name)
 			   (nconc data (list (cons :variant t))))
-			 (setq prev-name name)))		     
+			 (setq prev-name title)))		     
 		       (nconc data (list (cons :name (buffer-string)))))
 		     data)))
 
@@ -175,7 +211,12 @@
     (insert (json-encode (previews-fetch index)))
     (let ((coding-system-for-write 'utf-8))
       (write-region (point-min) (point-max) (previews-file time))))
+<<<<<<< HEAD
   (previews-cache-images time)
+=======
+  (previews-make-cache)
+  (previews-cache-images (format-time-string "%Y-%m" time))
+>>>>>>> what
   (with-temp-buffer
     (insert (format-time-string "emeraldDate = '%Y-%m';\n" time))
     (insert "emeraldDates = ")
@@ -191,15 +232,20 @@
 
 (defun previews-fetch (index)
   (cl-loop for elem in index
-	   collect (let ((data (previews-fetch-id (cdr (assq :code elem))))
-			 (shr-base (shr-parse-base
-				    "http://www.previewsworld.com/")))
-		     (message "%s" (cdr (assq :name elem)))
-		     (append elem
-			     `((:img . ,(and (plusp (length (nth 0 data)))
-					     (shr-expand-url (nth 0 data))))
-			       (:creators . ,(nth 1 data))
-			       (:text . ,(nth 2 data)))))))
+	   collect (if (assq :text elem)
+		       ;; If we already have the text, then we don't have
+		       ;; to fetch anything.
+		       elem
+		     ;; Fetch the text from Diamond.
+		     (let ((data (previews-fetch-id (cdr (assq :code elem))))
+			   (shr-base (shr-parse-base
+				      "https://www.previewsworld.com/")))
+		       (message "%s" (cdr (assq :name elem)))
+		       (append elem
+			       `((:img . ,(and (plusp (length (nth 0 data)))
+					       (shr-expand-url (nth 0 data))))
+				 (:creators . ,(nth 1 data))
+				 (:text . ,(string-trim (nth 2 data)))))))))
 
 (defun previews-file (time)
   (expand-file-name
@@ -209,7 +255,7 @@
 (defun previews-fetch-id (id)
   (with-current-buffer
       (url-retrieve-synchronously
-       (format "http://www.previewsworld.com/Catalog/%s"
+       (format "https://www.previewsworld.com/Catalog/%s"
 	       (replace-regexp-in-string " +" "" id))
        t t)
     (goto-char (point-min))
@@ -226,18 +272,25 @@
 	;; Creators.
 	(dom-texts (dom-by-class dom "^Creators$"))
 	;; Text.
-	(dom-text (dom-by-class dom "^Text$"))
+	(string-join
+	 (cl-loop for child in (dom-children (dom-by-class dom "^Text$"))
+		  when (or (stringp child)
+			   (eq (dom-tag child) 'i))
+		  collect (if (stringp child)
+			      child
+			    (dom-text child))))
 	;; Price.
 	(car (last (split-string
 		    (dom-texts (dom-by-class dom "^SRP$")))))))
 
-(defun previews-cache-images (month)
+(defun previews-cache-images (month &optional refresh)
   (let ((dir (expand-file-name (format "img/%s" month)
 			       previews-data-directory))
 	(json
 	 (with-temp-buffer
-	   (insert-file-contents (expand-file-name (format "previews-%s.json" month)
-						   previews-data-directory))
+	   (insert-file-contents
+	    (expand-file-name (format "previews-%s.json" month)
+			      previews-data-directory))
 	   (json-read))))
     (unless (file-exists-p dir)
       (make-directory dir t))
@@ -245,8 +298,11 @@
 	     do (let ((src (cdr (assq 'img comic)))
 		      (code (cdr (assq 'code comic))))
 		  (when (and src code)
-		    (let ((output (expand-file-name (format "%s-full.jpg" code) dir)))
-		      (unless (file-exists-p output)
+		    (let ((output (expand-file-name
+				   (format "%s-full.jpg" code) dir)))
+		      (when (or (not (file-exists-p output))
+				(and refresh
+				     (previews--placeholder-image-p output)))
 			(message "%s" src)
 			(call-process "curl" nil nil nil
 				      "-o" output
@@ -257,8 +313,25 @@
 			      (delete-file output)
 			    (call-process "convert" nil nil nil
 					  "-resize" "600x" output
-					  (replace-regexp-in-string "-full.jpg" "-scale.jpg" output))))
+					  (replace-regexp-in-string
+					   "-full.jpg" "-scale.jpg" output))))
 			(sleep-for 5))))))))
+
+(defun previews--placeholder-image-p (file)
+  (with-temp-buffer
+    (call-process "file" nil t nil file)
+    (goto-char (point-min))
+    (and (search-forward ": " nil t)
+	 (re-search-forward "\\([0-9]+\\) x \\([0-9]+\\)," nil t)
+	 (< (string-to-number (match-string 1)) 200))))
+
+(defun previews-refresh-placeholders ()
+  (interactive)
+  (let* ((regexp "previews-\\([-0-9]+\\)[.]json\\'")
+	 (latest (car (last (directory-files
+			     previews-data-directory t regexp)))))
+    (and (string-match regexp latest)
+	 (previews-cache-images (match-string 1 latest) t))))
 
 (defun previews-make-cache ()
   (dolist (file (directory-files previews-data-directory nil "previews.*json"))
@@ -267,6 +340,97 @@
 	(unless (file-exists-p (expand-file-name
 				(format "img/%s" month) previews-data-directory))
 	  (previews-cache-images month))))))
+
+(defun previews--index-lunar (time)
+  (let ((decoded (decode-time time)))
+    (setq decoded (decoded-time-add decoded (make-decoded-time :month 2)))
+    (setf (decoded-time-day decoded) 1)
+    (cl-loop with month = (decoded-time-month decoded)
+	     while (= month (decoded-time-month decoded))
+	     when (= (decoded-time-weekday (decode-time (encode-time decoded)))
+		     2)
+	     append (previews--index-lunar-1 (encode-time decoded))
+	     do (setq decoded (decoded-time-add decoded
+						(make-decoded-time :day 1))))))
+	     
+(defun previews--index-lunar-1 (time)
+  (let* ((date (format-time-string "%m/%d/%Y" time))
+	 (url (format "https://www.lunardistribution.com//?foc=&release=%s"
+		      date)))
+    (with-current-buffer
+	(url-retrieve-synchronously url t t)
+      (goto-char (point-min))
+      (when (re-search-forward "\n\n" nil t)
+	 (previews--parse-lunar
+	  (libxml-parse-html-region (point) (point-max)))))))
+
+(defun previews--parse-lunar (dom)
+  (cl-loop with prev-name
+	   for elem in (dom-by-class dom "productdetail")
+	   collect (let* ((name (dom-attr elem 'data-title))
+			  (code (dom-attr elem 'data-code))
+			  (data
+			   `((:publisher . ,(previews--lunar-publisher
+					     (substring code 4 6)))
+			     (:code . ,code)
+			     (:price . ,(dom-attr elem 'data-retail))
+			     (:date . ,(dom-attr elem 'data-instore))
+			     (:creators . ,(dom-attr elem 'data-creators))
+			     (:text  . ,(dom-attr elem 'data-desc))
+			     (:img . ,(dom-attr elem 'data-img)))))
+		     (with-temp-buffer
+		       (insert name)
+		       (goto-char (point-min))
+		       (when (re-search-forward " +(MR)" nil t)
+			 (nconc data (list (cons :mature t)))
+			 (replace-match ""))
+		       (goto-char (point-min))
+		       (when (re-search-forward
+			      "\\b\\(HC GN\\|GN\\|TP\\|HC\\|SC\\)\\b"
+			      nil t)
+			 (nconc data (list (cons :binding (match-string 1)))))
+		       (goto-char (point-min))
+		       (cond
+			;; Variants.
+			((looking-at "\\(.*\\) +\\(\\(#[^ ]+\\)\\|\\(.*VOL [^ ]+\\)\\)")
+			 (nconc data (list (cons :issue (match-string 2))
+					   (cons :title (match-string 1))))
+			 (setq name (match-string 0))
+			 (when (equal name prev-name)
+			   (nconc data (list (cons :variant t))))
+			 (setq prev-name name)))		     
+		       (nconc data (list (cons :name (buffer-string)))))
+		     data)))
+
+(defvar previews--lunar-publishers
+  '((DC "DC Comics")
+    (TM "Twomorrows")
+    (IM "Image")
+    (DE "Dynamite")
+    (RE "Rebellion")
+    (ON "Oni")
+    (MA "Mad Cave")
+    (BM "Black Mask")
+    (CS "Comic Shop News")
+    (RE "Rocketship Entertainment")
+    (AH "Ahoy Comics")
+    (MP "Panick Entertainment")
+    (RC "Rekcah Comics")
+    (IP "IPI Comics")
+    (BD "Bad Idea")
+    (AW "Awa")
+    (UB "U B")
+    (VL "V L")
+    (PZ "Papercutz")
+    (CP "Clover Press")
+    (PG "PUGW")
+    (FB "Fantagraphics Books")
+    (DQ "Drawn & Quarterly")
+    (AC "Archie Comics")))
+
+(defun previews--lunar-publisher (code)
+  (or (cadr (assq (intern code) previews--lunar-publishers))
+      code))
 
 (provide 'previews)
 
