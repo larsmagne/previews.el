@@ -457,7 +457,10 @@
     comic))
 
 (defun previews--index-prh (date)
-  (call-process "~/src/previews.el/prhget.py" nil nil nil date)
+  (call-process (expand-file-name "prhget.py"
+				  (file-name-directory
+				   (find-library-name "previews")))
+		nil nil nil date)
   (let ((xlsx (car (sort (directory-files "/tmp/prh/" t "[.]xlsx\\'")
 			 #'file-newer-than-file-p))))
     (call-process "ssconvert" nil nil nil
