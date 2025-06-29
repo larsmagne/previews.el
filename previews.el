@@ -494,12 +494,12 @@
 			 (nth 0 c))))
 	     comics))
 	  (forward-line 1))
-	(setq comics (nreverse comics)))
-      (cl-loop for comic in comics
-	       do
-	       (previews--fill-comic comic)
-	       (sleep-for 5))
-      comics)))
+	(setq comics (nreverse comics))
+	(cl-loop for comic in comics
+		 do
+		 (previews--fill-comic comic)
+		 (sleep-for 5))
+	comics))))
 
 (provide 'previews)
 
