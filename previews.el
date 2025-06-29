@@ -297,10 +297,19 @@
 				(and refresh
 				     (previews--placeholder-image-p output)))
 			(message "%s" src)
-			(call-process "curl" nil nil nil
-				      "-o" output
-				      "-L"
-				      "-q" src)
+			(if (not (string-match "/tif/" src))
+			    (call-process "curl" nil nil nil
+					  "-o" output
+					  "-L"
+					  "-q" src)
+			  (call-process "curl" nil nil nil
+					"-o" "/tmp/pfile.tiff"
+					"-L"
+					"-q" src)
+			  (when (file-exists-p "/tmp/pfile.tiff")
+			    (call-process "convert" nil nil nil
+					  "/tmp/pfile.tiff" output)
+			    (delete-file "/tmp/pfile.tiff")))
 			(when (file-exists-p output)
 			  (if (zerop (nth 7 (file-attributes output)))
 			      (delete-file output)
