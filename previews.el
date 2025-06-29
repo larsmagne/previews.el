@@ -85,11 +85,7 @@
 (defun previews--index-diamond (time)
   (set-locale-environment "C")
   (with-current-buffer (url-retrieve-synchronously
-<<<<<<< HEAD
-			(format "https://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/SEP17"
-=======
 			(format "https://www.previewsworld.com/Catalog/CustomerOrderForm/TXT/%s%s"
->>>>>>> what
 				(upcase (format-time-string "%h" time))
 				(format-time-string "%y" time))
 			t t)
@@ -211,12 +207,8 @@
     (insert (json-encode (previews-fetch index)))
     (let ((coding-system-for-write 'utf-8))
       (write-region (point-min) (point-max) (previews-file time))))
-<<<<<<< HEAD
-  (previews-cache-images time)
-=======
   (previews-make-cache)
   (previews-cache-images (format-time-string "%Y-%m" time))
->>>>>>> what
   (with-temp-buffer
     (insert (format-time-string "emeraldDate = '%Y-%m';\n" time))
     (insert "emeraldDates = ")
