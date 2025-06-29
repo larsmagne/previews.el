@@ -488,12 +488,44 @@
     comic))
 
 (defun previews--index-prh (date)
-  (call-process "~/src/previews.el/prhget.py" nil nil nil date "/tmp/prh.html")
-  (let ((comics (previews--prh-parse "/tmp/prh.html")))
-    (cl-loop for comic in comics
-	     do
-	     (previews--fill-comic comic)
-	     (sleep-for 5))))
+  (call-process "~/src/previews.el/prhget.py" nil nil nil date)
+  (let ((xlsx (car (sort (directory-files "/tmp/prh/" t "[.]xlsx\\'")
+			 #'file-newer-than-file-p))))
+    (call-process "ssconvert" nil nil nil
+		  "-O" "separator=\"\x1e\" format=raw"
+		  xlsx "/tmp/prh/prh.txt")
+    (with-temp-buffer
+      (insert-file-contents "/tmp/prh/prh.txt")
+      (re-search-forward "^ISBN")
+      (forward-line 1)
+      (let ((comics nil))
+	(while (not (eobp))
+	  (let* ((c (split-string (buffer-substring (point) (pos-eol)) "\x1e"))
+		 (title (nth 2 c))
+		 (issue ""))
+	    (when (string-match " \\(#[0-9]+\\|Vol\\(ume\\|[.]\\)? [0-9]+\\) "
+				title)
+	      (setq issue (match-string 1 title)
+		    title (substring title 0 (match-beginning 0)))))
+	  (push
+	   `((:publisher . ,(nth 5 c))
+	     (:code . ,(nth 0 c))
+	     (:price . ,(nth 5 c))
+	     (:date . ,(nth 10 c))
+	     (:creators . "")
+	     (:text  . "")
+	     (:title . ,title)
+	     (:issue . ,issue)
+	     (:img . ,(concat "https://images.penguinrandomhouse.com/cover/tif/"
+			      (nth 0 c))))
+	   comics)
+	  (forward-line 1))
+	(setq comics (nreverse comics)))
+      (cl-loop for comic in comics
+	       do
+	       (previews--fill-comic comic)
+	       (sleep-for 5))
+      comics)))
 
 (provide 'previews)
 

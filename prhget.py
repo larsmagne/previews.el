@@ -6,17 +6,24 @@ import time
 import random
 import json
 import sys
+import os
+
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, ElementNotInteractableException
 from selenium.webdriver.common.by import By
 
+if not os.path.exists("/tmp/prh/"):
+    os.mkdir("/tmp/prh/")
+    
 # Open Crome
 chrome_options = webdriver.ChromeOptions()
-prefs = {"profile.default_content_setting_values.notifications" : 2}
+prefs = {"profile.default_content_setting_values.notifications" : 2,
+         "download.default_directory" : "/tmp/prh/"}
 chrome_options.add_experimental_option("prefs", prefs)
 chrome_options.add_argument("--disable-notifications")
-#chrome_options.add_argument("--headless")
+chrome_options.add_argument("--headless")
+chrome_options.add_argument("window-size=1920,1080")
 chrome_options.add_argument("--disable-dev-shm-usage");
 #chrome_options.add_argument('--no-sandbox')
 driver = webdriver.Chrome(options=chrome_options)
@@ -34,43 +41,14 @@ except NoSuchElementException:
 
 time.sleep(3)
 
-def scroll_down():
-    """A method for scrolling the page."""
-    # Get scroll height.
-    last_height = driver.execute_script("return document.body.scrollHeight")
-    while True:
-        # Scroll down to the bottom.
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        # Wait to load the page.
-        time.sleep(2)
+button = driver.find_element(By.CLASS_NAME, "product-list-download")
+button.click()
 
-        # Calculate new scroll height and compare with last scroll height.
-        new_height = driver.execute_script("return document.body.scrollHeight")
-        if new_height == last_height:
-            break
+time.sleep(3)
 
-        last_height = new_height
+button = driver.find_element(By.XPATH, "//a[@href='#xls']")
+button.click()
 
-times = 30
-# Push "See More" some times.
-while times > 0:
-    times -= 1
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    scroll_down()
-    print("Scrolled")
-    try:
-        button = driver.find_element(By.ID, "titlelist-load-more-button")
-        try:
-            button.click()
-        except (ElementClickInterceptedException, ElementNotInteractableException):
-            pass
-    except NoSuchElementException:
-        pass
-    time.sleep(5)
+time.sleep(60)
 
-html = driver.execute_script("return document.body.innerHTML;")
-with open(sys.argv[2], "w") as f:
-    f.write(html)
-    print("Saved")
-
-#driver.quit()
+driver.quit()
