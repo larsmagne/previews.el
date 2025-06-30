@@ -79,8 +79,8 @@
 		    t)
 		   ;; Sort by publisher within non-merch/merch.
 		   (t
-		    (string< (cdr (assq :publisher e1))
-			     (cdr (assq :publisher e2))))))))
+		    (string< (downcase (cdr (assq :publisher e1)))
+			     (downcase (cdr (assq :publisher e2)))))))))
     (previews-fetch-and-write diamond time)
     t))
 
@@ -506,7 +506,7 @@
 	     comics))
 	  (forward-line 1))
 	(setq comics (nreverse comics))
-	(unless nil
+	(unless inhibit-fetch
 	  (cl-loop for comic in comics
 		   do
 		   (previews--fill-comic comic)
@@ -530,7 +530,7 @@
 				      return old)
 	     when old-comic
 	     do (cl-loop
-		 for slot in '(publisher price date title issue name text creators)
+		 for slot in '(publisher price date title issue name)
 		 do (if (assq slot old-comic)
 			(setcdr (assq slot old-comic)
 				(cdr (assq (intern (format ":%s" slot))
