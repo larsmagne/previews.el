@@ -489,7 +489,7 @@
 		 (name (nth 2 c))
 		 (title name)
 		 (issue ""))
-	    (when (string-match " \\(#[0-9]+\\|Vol\\(ume\\|[.]\\)? [0-9]+\\) "
+	    (when (string-match " \\(#[0-9]+\\|Vol\\(ume\\|[.]\\)? [0-9]+\\)"
 				title)
 	      (setq issue (match-string 1 title)
 		    title (substring title 0 (match-beginning 0))))
