@@ -79,8 +79,12 @@
 		    t)
 		   ;; Sort by publisher within non-merch/merch.
 		   (t
-		    (string< (downcase (cdr (assq :publisher e1)))
-			     (downcase (cdr (assq :publisher e2)))))))))
+		    (if (equal (downcase (cdr (assq :publisher e1)))
+			       (downcase (cdr (assq :publisher e2))))
+			(string< (cdr (assq :publisher e1))
+				 (cdr (assq :publisher e2)))
+		      (string< (downcase (cdr (assq :publisher e1)))
+			       (downcase (cdr (assq :publisher e2))))))))))
     (previews-fetch-and-write diamond time)
     t))
 
