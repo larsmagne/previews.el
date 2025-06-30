@@ -138,7 +138,8 @@
 			    (:code . ,(replace-regexp-in-string " " "" code))
 			    (:price . ,(replace-regexp-in-string "SRP: " ""
 								 price))
-			    (:date . ,date)))
+			    (:date . ,date)
+			    (:distributor . "Diamond")))
 			 name)
 		     (when (plusp (length class))
 		       (nconc data (list (cons :class class))))
@@ -380,6 +381,7 @@
 			     (:date . ,(dom-attr elem 'data-instore))
 			     (:creators . ,(dom-attr elem 'data-creators))
 			     (:text  . ,(dom-attr elem 'data-desc))
+			     (:distributor . "Lunar")
 			     (:img . ,(dom-attr elem 'data-img)))))
 		     (with-temp-buffer
 		       (insert name)
@@ -443,8 +445,8 @@
 		      (cdr (assq :code comic))))
 	   (goto-char (point-min))
 	   (prog1
-	       (when (search-forward "\n\n" nil t)
-		 (libxml-parse-html-region (point) (point-max)))
+	       (and (search-forward "\n\n" nil t)
+		    (libxml-parse-html-region (point) (point-max)))
 	     (kill-buffer (current-buffer))))))
     (setcdr (assq :text comic)
 	    (string-trim
@@ -452,16 +454,18 @@
 	      (dom-texts (dom-by-class dom "book-detail-about")))))
     (setcdr (assq :creators comic)
 	    (string-join
-	     (cl-loop for author in (dom-by-class dom "book-detail-author")
-		      collect (dom-text (dom-by-tag author 'a)))
+	     (seq-uniq
+	      (cl-loop for author in (dom-by-class dom "book-detail-author")
+		       collect (dom-text (dom-by-tag author 'a))))
 	     ", "))
     comic))
 
-(defun previews--index-prh (date)
-  (call-process (expand-file-name "prhget.py"
-				  (file-name-directory
-				   (find-library-name "previews")))
-		nil nil nil date)
+(defun previews--index-prh (date &optional inhibit-fetch)
+  (unless inhibit-fetch
+    (call-process (expand-file-name "prhget.py"
+				    (file-name-directory
+				     (find-library-name "previews")))
+		  nil nil nil date))
   (let ((xlsx (car (sort (directory-files "/tmp/prh/" t "[.]xlsx\\'")
 			 #'file-newer-than-file-p))))
     (call-process "ssconvert" nil nil nil
@@ -473,8 +477,13 @@
       (forward-line 1)
       (let ((comics nil))
 	(while (not (eobp))
-	  (let* ((c (split-string (buffer-substring (point) (pos-eol)) "\x1e"))
-		 (title (nth 2 c))
+	  (let* ((c (mapcar
+		     (lambda (elem)
+		       (replace-regexp-in-string "\\`[\"]\\|[\"]\\'" "" elem))
+		     (split-string (buffer-substring (point) (pos-eol))
+				   "\x1e")))
+		 (name (nth 2 c))
+		 (title name)
 		 (issue ""))
 	    (when (string-match " \\(#[0-9]+\\|Vol\\(ume\\|[.]\\)? [0-9]+\\) "
 				title)
@@ -483,23 +492,61 @@
 	    (push
 	     `((:publisher . ,(nth 5 c))
 	       (:code . ,(nth 0 c))
-	       (:price . ,(nth 5 c))
+	       (:price . ,(string-replace " US" "" (nth 6 c)))
 	       (:date . ,(nth 10 c))
-	       (:creators . "")
-	       (:text  . "")
-	       (:title . ,title)
+	       (:creators . ,"")
+	       (:text  . ,"")
 	       (:issue . ,issue)
+	       (:title . ,title)
+	       (:name . ,name)
 	       (:img . ,(concat
 			 "https://images.penguinrandomhouse.com/cover/tif/"
-			 (nth 0 c))))
+			 (nth 0 c)))
+	       (:distributor . "PRH"))
 	     comics))
 	  (forward-line 1))
 	(setq comics (nreverse comics))
-	(cl-loop for comic in comics
-		 do
-		 (previews--fill-comic comic)
-		 (sleep-for 5))
+	(unless nil
+	  (cl-loop for comic in comics
+		   do
+		   (previews--fill-comic comic)
+		   (sleep-for 5)))
 	comics))))
+
+(defun previews--data (month)
+  (with-temp-buffer
+    (insert-file-contents
+     (expand-file-name (format "previews-%s.json" month)
+		       previews-data-directory))
+    (json-parse-buffer :object-type 'alist)))
+
+(defun previews--update-prh (month)
+  (let ((json (previews--data month))
+	(comics (previews--index-prh month t)))
+    (cl-loop for comic in comics
+	     for code = (cdr (assq :code comic))
+	     for old-comic = (cl-loop for old across json
+				      when (equal code (cdr (assq 'code old)))
+				      return old)
+	     when old-comic
+	     do (cl-loop
+		 for slot in '(publisher price date title issue name text creators)
+		 do (if (assq slot old-comic)
+			(setcdr (assq slot old-comic)
+				(cdr (assq (intern (format ":%s" slot))
+					   comic)))
+		      (nconc old-comic
+			     (list (cons slot
+					 (cdr (assq (intern (format ":%s" slot))
+						    comic))))))))
+    json))
+
+(defun previews--update-json (json month)
+  (with-temp-buffer
+    (json-insert json)
+    (write-region (point-min) (point-max)
+		  (expand-file-name (format "previews-%s.json" month)
+				    previews-data-directory))))
 
 (provide 'previews)
 
