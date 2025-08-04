@@ -99,9 +99,7 @@
     (when (and (search-forward "\n\n" nil )
 	       (= (following-char) 255))
       (decode-coding-region (point) (point-max) 'utf-16))
-    (if (not (search-forward "PREVIEWS" nil t))
-	nil
-      (previews-interpret-index (previews-parse-index)))))
+    (previews-interpret-index (previews-parse-index))))
 
 (defun previews-parse-index ()
   (goto-char (point-min))
