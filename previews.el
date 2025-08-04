@@ -135,6 +135,7 @@
 		(setq title date
 		      date price
 		      price ""))
+	   when price
 	   collect (let ((data
 			  `((:publisher . ,publisher)
 			    (:code . ,(replace-regexp-in-string " " "" code))
