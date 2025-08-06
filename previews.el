@@ -116,7 +116,8 @@
       (cond
        ((looking-at ".*\t")
 	(push (list publisher merchandise
-		    (split-string (buffer-substring (point) (line-end-position))
+		    (split-string (buffer-substring-no-properties
+				   (point) (line-end-position))
 				  "\t"))
 	      comics))
        ((looking-at "MERCHANDISE *$")
@@ -137,12 +138,13 @@
 		      price ""))
 	   when price
 	   collect (let ((data
-			  `((:publisher . ,publisher)
-			    (:code . ,(replace-regexp-in-string " " "" code))
-			    (:price . ,(replace-regexp-in-string "SRP: " ""
-								 price))
-			    (:date . ,date)
-			    (:distributor . "Diamond")))
+			  (copy-sequence
+			   `((:publisher . ,publisher)
+			     (:code . ,(replace-regexp-in-string " " "" code))
+			     (:price . ,(replace-regexp-in-string "SRP: " ""
+								  price))
+			     (:date . ,date)
+			     (:distributor . "Diamond"))))
 			 name)
 		     (when (plusp (length class))
 		       (nconc data (list (cons :class class))))
