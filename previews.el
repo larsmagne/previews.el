@@ -356,8 +356,10 @@
     (setf (decoded-time-day decoded) 1)
     (cl-loop with month = (decoded-time-month decoded)
 	     while (= month (decoded-time-month decoded))
-	     when (= (decoded-time-weekday (decode-time (encode-time decoded)))
-		     2)
+	     when (memq
+		   (decoded-time-weekday (decode-time (encode-time decoded)))
+		   ;; Tuesday/Wednesday.
+		   '(2 3))
 	     append (previews--index-lunar-1 (encode-time decoded))
 	     do (setq decoded (decoded-time-add decoded
 						(make-decoded-time :day 1))))))
