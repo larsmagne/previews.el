@@ -41,7 +41,7 @@
   (interactive)
   (let ((time (float-time (current-time)))
 	did)
-    (cl-incf time (* 60 60 24 7))
+    (cl-incf time (* 60 60 24 3))
     (unless (file-exists-p (previews-file time))
       (setq did (previews-index time)))
     (when (and did
