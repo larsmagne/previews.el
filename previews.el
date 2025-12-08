@@ -284,6 +284,16 @@
     (AY "Asylum Press")
     (UB "Uncivilized Books")
     (WE "Wake")
+    (HP "Hermes Press")
+    (CB "Chronicle Books")
+    (AK "Abrams Kana")
+    (AB "Amulet Books")
+    (CR "Craniacs")
+    (HP "Hermes Press")
+    (LP "The Lab Press")
+    (MM "Magma Comix")
+    (PP "Source Point Press")
+    (WE "Wake Entertainment")
     (AC "Archie Comics")))
 
 (defun previews--lunar-publisher (code)
@@ -403,6 +413,48 @@
     (write-region (point-min) (point-max)
 		  (expand-file-name (format "previews-%s.json" month)
 				    previews-data-directory))))
+
+(defun previews--fix-urls ()
+  (let ((json (previews--data "2025-12")))
+    (cl-loop for comic across json
+	     do (setq comic
+		      (nconc comic
+			     (list
+			      (cons 'url
+				    (concat
+				     (if (equal (cdr (assq 'distributor comic))
+						"Lunar")
+					 "https://www.lunardistribution.com/home/search?term="
+				       "https://prhcomics.com/book/?isbn=")
+				     (cdr (assq 'code comic))))))))
+    (previews--update-json json "2025-12")))
+
+(defun previews--list-unmatched-lunar-codes ()
+  (pop-to-buffer "*lunar*")
+  (let ((elems
+	 (seq-uniq
+	  (cl-loop for comic across (previews--data "2025-12")
+		   for publisher = (cdr (assq 'publisher comic))
+		   when (length= publisher 2)
+		   collect (cons (cdr (assq 'publisher comic))
+				 (cdr (assq 'name comic))))
+	  (lambda (e1 e2)
+	    (equal (car e1) (car e2))))))
+    (erase-buffer)
+    (cl-loop for (code . _) in elems
+	     do (insert "    (" code " \"\")\n"))
+    (open-webs (mapcar
+		(lambda (el)
+		  (format "https://www.midtowncomics.com/search?q=%s&pp=100&pj=1&rel=1&os=1"
+			  (browse-url-encode-url
+			   (replace-regexp-in-string
+			    "\\( TP\\| HC\\).*" ""
+			    (cdr el)))))
+		elems))))
+
+(defun previews--search-title (title)
+  (open-web (format "https://www.midtowncomics.com/search?rel=&cfr=t&q=%s"
+		    (browse-url-encode-url title))))
 
 (provide 'previews)
 
