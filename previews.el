@@ -182,7 +182,8 @@
 (defun previews--index-lunar (time)
   (let ((decoded (decode-time time)))
     (setq decoded (decoded-time-add decoded (make-decoded-time :month 1)))
-    (setf (decoded-time-day decoded) 1)
+    ;; We want stuff that's going on sale two months from now.
+    (setf (decoded-time-day decoded) 2)
     (cl-loop with month = (decoded-time-month decoded)
 	     while (= month (decoded-time-month decoded))
 	     when (memq
