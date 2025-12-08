@@ -280,6 +280,7 @@
     (DQ "Drawn & Quarterly")
     (AY "Asylum Press")
     (UB "Uncivilized Books")
+    (WE "Wake")
     (AC "Archie Comics")))
 
 (defun previews--lunar-publisher (code)
