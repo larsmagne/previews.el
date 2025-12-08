@@ -287,7 +287,7 @@
   (or (cadr (assq (intern code) previews--lunar-publishers))
       code))
 
-(defun previews--fill-comic (comic)
+(defun previews--fill-prh-comic (comic)
   (let ((dom
 	 (with-current-buffer
 	     (url-retrieve-synchronously
@@ -353,6 +353,8 @@
 		(:img . ,(concat
 			  "https://images.penguinrandomhouse.com/cover/tif/"
 			  (nth 0 c)))
+		(:url . ,(concat "https://prhcomics.com/book/?isbn="
+				 (nth 0 c)))
 		(:distributor . "PRH")))
 	     comics))
 	  (forward-line 1))
@@ -360,7 +362,7 @@
 	(unless inhibit-fetch
 	  (cl-loop for comic in comics
 		   do
-		   (previews--fill-comic comic)
+		   (previews--fill-prh-comic comic)
 		   (sleep-for 5)))
 	comics))))
 
