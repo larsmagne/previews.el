@@ -181,7 +181,7 @@
 
 (defun previews--index-lunar (time)
   (let ((decoded (decode-time time)))
-    (setq decoded (decoded-time-add decoded (make-decoded-time :month 2)))
+    (setq decoded (decoded-time-add decoded (make-decoded-time :month 1)))
     (setf (decoded-time-day decoded) 1)
     (cl-loop with month = (decoded-time-month decoded)
 	     while (= month (decoded-time-month decoded))
@@ -218,6 +218,8 @@
 			     (:creators . ,(dom-attr elem 'data-creators))
 			     (:text  . ,(dom-attr elem 'data-desc))
 			     (:distributor . "Lunar")
+			     (:url . ,(concat "https://www.lunardistribution.com/home/search?term="
+					      code))
 			     (:img . ,(dom-attr elem 'data-img)))))
 		     (with-temp-buffer
 		       (insert name)
