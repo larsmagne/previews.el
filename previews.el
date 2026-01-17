@@ -234,13 +234,17 @@
   (let ((decoded (decode-time time)))
     (setq decoded (decoded-time-add decoded (make-decoded-time :month 1)))
     ;; We want stuff that's going on sale two months from now.
-    (setf (decoded-time-day decoded) 2)
+    (setf (decoded-time-day decoded) 1)
     (cl-loop with month = (decoded-time-month decoded)
-	     while (= month (decoded-time-month decoded))
+	     while (or (= month (decoded-time-month decoded))
+		       (= (if (= month 11)
+			      0
+			    (1+ month))
+			  (decoded-time-month decoded)))
 	     when (memq
 		   (decoded-time-weekday (decode-time (encode-time decoded)))
-		   ;; Tuesday/Wednesday.
-		   '(2 3))
+		   ;; Monday/Tuesday/Wednesday.
+		   '(1 2 3))
 	     append (previews--index-lunar-1 (encode-time decoded))
 	     do (setq decoded (decoded-time-add decoded
 						(make-decoded-time :day 1))))))
