@@ -49,7 +49,6 @@
     (IP "IPI Comics")
     (BD "Bad Idea")
     (AW "Awa")
-    (UB "U B")
     (VL "Vault")
     (EX "Keenspot")
     (FU "Fantagraphics Underground")
