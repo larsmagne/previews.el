@@ -13,6 +13,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, ElementNotInteractableException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.chrome.service import Service as ChromeService
+
+service = ChromeService(executable_path="/usr/bin/chromedriver")
 
 if not os.path.exists("/tmp/prh/"):
     os.mkdir("/tmp/prh/")
@@ -27,7 +30,8 @@ chrome_options.add_argument("--headless")
 chrome_options.add_argument("window-size=1920,1080")
 chrome_options.add_argument("--disable-dev-shm-usage");
 #chrome_options.add_argument('--no-sandbox')
-driver = webdriver.Chrome(options=chrome_options)
+
+driver = webdriver.Chrome(options = chrome_options, service = service)
 
 driver.get("https://prhcomics.com/catalog-landing-page/?catalogCode=" +
            sys.argv[1])
